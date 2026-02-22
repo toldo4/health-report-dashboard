@@ -27,18 +27,17 @@ async function getAccessToken() {
 }
 
 // Fetch all profiles
-export async function getProfiles() {
-  const token = await getAccessToken();
-  const response = await fetch(`${BASE_URL}/service/b2b-integrations/profile/`, {
+export async function getProfile(id: string) {
+  const token = await getAccessToken()
+  const response = await fetch(`${BASE_URL}/service/b2b-integrations/profile/${id}/`, {
     headers: {
-      "Authorization": `Bearer ${token}`,
-      "Accept": "application/json",
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
     },
     cache: "no-store",
-  });
-
-  if (!response.ok) throw new Error("Failed to fetch profiles");
-  return response.json();
+  })
+  if (!response.ok) throw new Error(`Failed to fetch profile: ${response.status}`)
+  return response.json()
 }
 
 // Create a new profile
@@ -102,10 +101,4 @@ export async function deleteProfile(id: string) {
 
   revalidatePath("/");
   return true;
-}
-
-export async function getProfile(id: string) {
-  const token = await getAccessToken()
-  const res = await fetch(`${BASE_URL}/service/b2b-integrations/profile/${id}/`, ...)
-  return res.json()
 }
