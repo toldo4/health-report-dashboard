@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { createProfile } from "@/actions/profile"
+import { updateProfile } from "@/actions/profile"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,42 +32,45 @@ import {
 } from "@/components/ui/select"
 
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required").max(256),
+  name: z.string().min(1, "Name is required").max(256).optional(),
   email: z.string().email().optional().or(z.literal("")),
-  sex: z.enum(["Male", "Female"]),
-  birth_year: z.coerce.number().min(1900).max(2026),
+  sex: z.enum(["Male", "Female"]).optional(),
+  birth_year: z.coerce.number().min(1900).max(2026).optional(),
   height: z.coerce.number().min(0).max(300).optional(), // cm
   weight: z.coerce.number().min(0).max(650).optional(), // kg
 })
 
-export function CreateProfileDialog() {
+export function EditProfileDialog({ profile }: { profile: any }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // Initialize with API data, safely falling back to undefined to let Zod handle it, 
+  // but rendering with ?? "" in the inputs below.
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      email: "",
-      sex: "Male",
-      birth_year: 1990,
+      name: profile.name || "",
+      email: profile.email || "",
+      sex: profile.sex || "Male",
+      birth_year: profile.birth_year,
+      height: profile.height,
+      weight: profile.weight,
     },
   })
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true)
     try {
-      // Clean up empty strings or zeroed optional fields before sending to API
+      // Clean up empty fields or zeros so we only send partial updates
       const payload = Object.fromEntries(
-        Object.entries(values).filter(([_, v]) => v !== "" && v !== 0 && !Number.isNaN(v))
+        Object.entries(values).filter(([_, v]) => v !== "" && v !== undefined && v !== 0 && !Number.isNaN(v))
       )
       
-      await createProfile(payload)
+      await updateProfile(profile.id, payload)
       setOpen(false)
-      form.reset()
     } catch (error) {
       console.error(error)
-      alert("Failed to create profile. Check console for details.")
+      alert("Failed to update profile. Check console for details.")
     } finally {
       setLoading(false)
     }
@@ -76,11 +79,11 @@ export function CreateProfileDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>Create Profile</Button>
+        <Button variant="outline" size="sm">Edit</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New Profile</DialogTitle>
+          <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -90,8 +93,7 @@ export function CreateProfileDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  {/* Notice the field.value ?? "" to ensure it is always controlled */}
-                  <FormControl><Input placeholder="John Doe" {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -103,7 +105,7 @@ export function CreateProfileDialog() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email (Optional)</FormLabel>
-                  <FormControl><Input placeholder="john@example.com" {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -136,7 +138,7 @@ export function CreateProfileDialog() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Birth Year</FormLabel>
-                    <FormControl><Input type="number" placeholder="1990" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -150,7 +152,7 @@ export function CreateProfileDialog() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Height (cm)</FormLabel>
-                    <FormControl><Input type="number" placeholder="180" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -162,7 +164,7 @@ export function CreateProfileDialog() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Weight (kg)</FormLabel>
-                    <FormControl><Input type="number" placeholder="75" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -170,7 +172,7 @@ export function CreateProfileDialog() {
             </div>
 
             <Button type="submit" disabled={loading} className="w-full mt-2">
-              {loading ? "Creating..." : "Save Profile"}
+              {loading ? "Updating..." : "Save Changes"}
             </Button>
           </form>
         </Form>

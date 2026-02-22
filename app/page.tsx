@@ -1,6 +1,9 @@
 // app/page.tsx
+import Link from "next/link"
 import { getProfiles } from "@/actions/profile"
 import { CreateProfileDialog } from "@/components/create-profile-dialog"
+import { EditProfileDialog } from "@/components/edit-profile-dialog"
+import { DeleteProfileButton } from "@/components/delete-profile-button"
 import {
   Table,
   TableBody,
@@ -11,7 +14,6 @@ import {
 } from "@/components/ui/table"
 
 export default async function DashboardPage() {
-  // Fetch profiles server-side
   const profiles = await getProfiles()
 
   return (
@@ -32,7 +34,7 @@ export default async function DashboardPage() {
               <TableHead>Email</TableHead>
               <TableHead>Sex</TableHead>
               <TableHead>Birth Year</TableHead>
-              <TableHead>ID</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -45,12 +47,20 @@ export default async function DashboardPage() {
             ) : (
               profiles.map((profile: any) => (
                 <TableRow key={profile.id}>
-                  <TableCell className="font-medium">{profile.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link
+                      href={`/profiles/${profile.id}`}
+                      className="hover:underline text-primary"
+                    >
+                      {profile.name}
+                    </Link>
+                  </TableCell>
                   <TableCell>{profile.email || "—"}</TableCell>
                   <TableCell>{profile.sex}</TableCell>
                   <TableCell>{profile.birth_year}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-mono">
-                    {profile.id}
+                  <TableCell className="text-right space-x-2">
+                    <EditProfileDialog profile={profile} />
+                    <DeleteProfileButton id={profile.id} />
                   </TableCell>
                 </TableRow>
               ))

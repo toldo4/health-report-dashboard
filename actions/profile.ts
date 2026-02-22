@@ -103,3 +103,9 @@ export async function deleteProfile(id: string) {
   revalidatePath("/");
   return true;
 }
+
+export async function getProfile(id: string) {
+  const token = await getAccessToken()
+  const res = await fetch(`${BASE_URL}/service/b2b-integrations/profile/${id}/`, ...)
+  return res.json()
+}
