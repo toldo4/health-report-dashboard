@@ -173,13 +173,22 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
   const [loadingBundle, setLoadingBundle] = useState<string | null>(null)
   const [errors, setErrors]               = useState<Record<string, string>>({})
   const [bundleResults, setBundleResults] = useState<Record<string, { succeeded: string[]; failed: Array<{ label: string; error: string }> } | null>>({})
+  const [catalogueSearch, setCatalogueSearch] = useState("")
 
-  // Custom report search state
-  const [searchQuery, setSearchQuery]   = useState("")
-  const [searchResults, setSearchResults] = useState<ReportSummary[]>([])
+  // Custom (API) report search state
+  const [searchQuery, setSearchQuery]         = useState("")
+  const [searchResults, setSearchResults]     = useState<ReportSummary[]>([])
   const [selectedReports, setSelectedReports] = useState<ReportSummary[]>([])
-  const [searching, setSearching]       = useState(false)
-  const [customLoading, setCustomLoading] = useState(false)
+  const [searching, setSearching]             = useState(false)
+  const [customLoading, setCustomLoading]     = useState(false)
+
+  // Filter catalogue by local search
+  const filteredCatalogue = catalogueSearch.trim()
+    ? CATALOGUE.filter(item =>
+        item.label.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+        item.note?.toLowerCase().includes(catalogueSearch.toLowerCase())
+      )
+    : CATALOGUE
 
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return }
@@ -243,13 +252,34 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
 
       {/* ── Individual items ─────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-3">
           <FileText className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">Individual Reports</h3>
-          <span className="text-xs text-muted-foreground">— billed per item</span>
         </div>
+
+        {/* Local filter */}
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={catalogueSearch}
+            onChange={e => setCatalogueSearch(e.target.value)}
+            placeholder="Filter reports…"
+            className="pl-9 h-8 text-sm"
+          />
+          {catalogueSearch && (
+            <button
+              onClick={() => setCatalogueSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground leading-none text-base"
+            >×</button>
+          )}
+        </div>
+
         <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
-          {CATALOGUE.map(item => {
+          {filteredCatalogue.length === 0 ? (
+            <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+              No reports match "{catalogueSearch}"
+            </div>
+          ) : filteredCatalogue.map(item => {
             const isLoading = loadingItem === item.id
             const err = errors[item.id]
             return (
@@ -263,7 +293,6 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
                   </div>
                   {err && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{err}</p>}
                 </div>
-                <span className="text-sm font-semibold text-foreground shrink-0">${item.price}</span>
                 <Button
                   size="sm"
                   variant="outline"
@@ -287,7 +316,6 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
         <div className="flex items-center gap-2 mb-4">
           <Package className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">Bundles</h3>
-          <span className="text-xs text-muted-foreground">— auto-billed at bundle rate</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {BUNDLES.map(bundle => {
@@ -298,14 +326,11 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
 
             return (
               <div key={bundle.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{bundle.label}</p>
-                    {bundle.description && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{bundle.description}</p>
-                    )}
-                  </div>
-                  <span className="text-lg font-bold text-foreground shrink-0">${bundle.price}</span>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{bundle.label}</p>
+                  {bundle.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{bundle.description}</p>
+                  )}
                 </div>
 
                 {/* Item list */}
@@ -314,7 +339,6 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
                     <div key={item.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <div className="w-1 h-1 rounded-full bg-muted-foreground/40" />
                       {item.label}
-                      <span className="ml-auto text-muted-foreground/60">${item.price}</span>
                     </div>
                   ))}
                 </div>
@@ -356,7 +380,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
         </div>
       </div>
 
-      {/* ── Custom search ─────────────────────────────────────────────── */}
+      {/* ── Custom API search ─────────────────────────────────────────── */}
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Search className="w-4 h-4 text-muted-foreground" />

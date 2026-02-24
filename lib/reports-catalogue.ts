@@ -70,7 +70,7 @@ export const CATALOGUE: CatalogueItem[] = [
   { id: "longevity",          label: "Longevity Screener",                  price: 30, type: "simple", jobType: "longevity-screener" },
   { id: "pgx",                label: "Medication Check (PGx)",              price: 25, type: "simple", jobType: "pgx"                },
   { id: "carrier-status",     label: "Family Planning (Carrier Status)",    price: 25, type: "simple", jobType: "carrier-status"     },
-  { id: "ancestry",           label: "Ancestry",                            price: 20, type: "simple", jobType: "ancestry",          note: "Not on checkout" },
+  { id: "ancestry",           label: "Ancestry",                            price: 20, type: "simple", jobType: "ancestry",          note: "" },
   { id: "methylation",        label: "Methylation Pathway",                 price: 25, type: "simple", jobType: "bio-chemistry"      },
   { id: "detox",              label: "Detox Pathway",                       price: 25, type: "simple", jobType: "bio-chemistry"      },
   { id: "histamine",          label: "Histamine Pathway",                   price: 25, type: "simple", jobType: "bio-chemistry"      },
@@ -79,7 +79,7 @@ export const CATALOGUE: CatalogueItem[] = [
   { id: "health-reports",     label: "Health Reports",                      price: 30, type: "report", searchQuery: "health",        note: "Summary + Individual"           },
   { id: "functional-reports", label: "Functional Reports",                  price: 30, type: "report", searchQuery: "functional",    note: "Summary + Genes + Biohacker"    },
   { id: "medical-reports",    label: "Medical Reports",                     price: 30, type: "report", searchQuery: "medical",       note: "Summary + Individual"           },
-  { id: "traits",             label: "Traits",                              price: 10, type: "report", searchQuery: "traits",        note: "Not on checkout"                },
+  { id: "traits",             label: "Traits",                              price: 10, type: "report", searchQuery: "traits",        note: ""                },
 ]
 
 export const BUNDLES: Bundle[] = [
