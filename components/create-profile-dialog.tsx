@@ -31,22 +31,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
+// All fields are strings in the form — we convert numbers manually in onSubmit.
+// This avoids the z.coerce / z.transform input↔output mismatch with zodResolver.
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required").max(256),
-  email: z.string().email().optional().or(z.literal("")),
-  sex: z.enum(["Male", "Female"]),
-  birth_year: z.coerce.number().int().min(1900).max(2026),
-  // Use string input → coerce to number, treat empty string as undefined
-  height: z
-    .string()
-    .optional()
-    .transform(v => (v === "" || v === undefined ? undefined : Number(v)))
-    .pipe(z.number().min(0).max(300).optional()),
-  weight: z
-    .string()
-    .optional()
-    .transform(v => (v === "" || v === undefined ? undefined : Number(v)))
-    .pipe(z.number().min(0).max(650).optional()),
+  name:       z.string().min(1, "Name is required").max(256),
+  email:      z.string().email("Invalid email").or(z.literal("")),
+  sex:        z.enum(["Male", "Female"]),
+  birth_year: z.string().min(1, "Birth year is required"),
+  height:     z.string(),
+  weight:     z.string(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -55,13 +48,13 @@ export function CreateProfileDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const form = useForm<z.input<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       email: "",
       sex: "Male",
-      birth_year: 1990,
+      birth_year: "",
       height: "",
       weight: "",
     },
@@ -70,9 +63,15 @@ export function CreateProfileDialog() {
   async function onSubmit(values: FormValues) {
     setLoading(true)
     try {
-      const payload = Object.fromEntries(
-        Object.entries(values).filter(([_, v]) => v !== "" && v !== undefined && !Number.isNaN(v))
-      )
+      const payload: Record<string, unknown> = {
+        name: values.name,
+        sex: values.sex,
+        birth_year: parseInt(values.birth_year, 10),
+      }
+      if (values.email)  payload.email  = values.email
+      if (values.height) payload.height = parseFloat(values.height)
+      if (values.weight) payload.weight = parseFloat(values.weight)
+
       await createProfile(payload)
       setOpen(false)
       form.reset()
@@ -94,7 +93,7 @@ export function CreateProfileDialog() {
           <DialogTitle>Create New Profile</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -102,7 +101,7 @@ export function CreateProfileDialog() {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} value={field.value ?? ""} />
+                    <Input placeholder="John Doe" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -116,7 +115,7 @@ export function CreateProfileDialog() {
                 <FormItem>
                   <FormLabel>Email (Optional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="john@example.com" {...field} value={field.value ?? ""} />
+                    <Input placeholder="john@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -151,7 +150,7 @@ export function CreateProfileDialog() {
                   <FormItem>
                     <FormLabel>Birth Year</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="1990" {...field} value={field.value ?? ""} />
+                      <Input type="number" placeholder="1990" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -167,7 +166,7 @@ export function CreateProfileDialog() {
                   <FormItem>
                     <FormLabel>Height (cm)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="180" {...field} value={field.value ?? ""} />
+                      <Input type="number" placeholder="180" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -181,7 +180,7 @@ export function CreateProfileDialog() {
                   <FormItem>
                     <FormLabel>Weight (kg)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="75" {...field} value={field.value ?? ""} />
+                      <Input type="number" placeholder="75" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
