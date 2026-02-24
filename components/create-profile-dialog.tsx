@@ -35,33 +35,44 @@ const formSchema = z.object({
   name: z.string().min(1, "Name is required").max(256),
   email: z.string().email().optional().or(z.literal("")),
   sex: z.enum(["Male", "Female"]),
-  birth_year: z.coerce.number().min(1900).max(2026),
-  height: z.coerce.number().min(0).max(300).optional(), // cm
-  weight: z.coerce.number().min(0).max(650).optional(), // kg
+  birth_year: z.coerce.number().int().min(1900).max(2026),
+  // Use string input → coerce to number, treat empty string as undefined
+  height: z
+    .string()
+    .optional()
+    .transform(v => (v === "" || v === undefined ? undefined : Number(v)))
+    .pipe(z.number().min(0).max(300).optional()),
+  weight: z
+    .string()
+    .optional()
+    .transform(v => (v === "" || v === undefined ? undefined : Number(v)))
+    .pipe(z.number().min(0).max(650).optional()),
 })
+
+type FormValues = z.infer<typeof formSchema>
 
 export function CreateProfileDialog() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<z.input<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       email: "",
       sex: "Male",
       birth_year: 1990,
+      height: "",
+      weight: "",
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormValues) {
     setLoading(true)
     try {
-      // Clean up empty strings or zeroed optional fields before sending to API
       const payload = Object.fromEntries(
-        Object.entries(values).filter(([_, v]) => v !== "" && v !== 0 && !Number.isNaN(v))
+        Object.entries(values).filter(([_, v]) => v !== "" && v !== undefined && !Number.isNaN(v))
       )
-      
       await createProfile(payload)
       setOpen(false)
       form.reset()
@@ -83,32 +94,35 @@ export function CreateProfileDialog() {
           <DialogTitle>Create New Profile</DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  {/* Notice the field.value ?? "" to ensure it is always controlled */}
-                  <FormControl><Input placeholder="John Doe" {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl>
+                    <Input placeholder="John Doe" {...field} value={field.value ?? ""} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email (Optional)</FormLabel>
-                  <FormControl><Input placeholder="john@example.com" {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl>
+                    <Input placeholder="john@example.com" {...field} value={field.value ?? ""} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -129,14 +143,16 @@ export function CreateProfileDialog() {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="birth_year"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Birth Year</FormLabel>
-                    <FormControl><Input type="number" placeholder="1990" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl>
+                      <Input type="number" placeholder="1990" {...field} value={field.value ?? ""} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -150,19 +166,23 @@ export function CreateProfileDialog() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Height (cm)</FormLabel>
-                    <FormControl><Input type="number" placeholder="180" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl>
+                      <Input type="number" placeholder="180" {...field} value={field.value ?? ""} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="weight"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Weight (kg)</FormLabel>
-                    <FormControl><Input type="number" placeholder="75" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl>
+                      <Input type="number" placeholder="75" {...field} value={field.value ?? ""} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
