@@ -203,7 +203,7 @@ export function GenomeUpload({ profileId, onSuccess }: GenomeUploadProps) {
       )}
 
       {/* Upload button */}
-      {file && !isLoading && step !== "done" && (
+      {file && !isLoading && (
         <Button onClick={handleUpload} className="w-full gap-2">
           <Upload className="w-4 h-4" />
           Upload Genome File

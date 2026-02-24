@@ -14,11 +14,14 @@ import {
   generateBundle,
   searchReports,
   createBulkReportJobs,
+} from "@/actions/reports"
+import {
+  CATALOGUE,
+  BUNDLES,
   type AnyJob,
   type PaginatedJobs,
   type ReportSummary,
-} from "@/actions/reports"
-import { CATALOGUE, BUNDLES } from "@/lib/reports-catalogue"
+} from "@/lib/reports-catalogue"
 
 const PAGE_SIZE = 15
 
@@ -451,6 +454,7 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
   const [data, setData]             = useState<PaginatedJobs>(initialData)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [jobSearch, setJobSearch]   = useState("")
 
   const loadPage = useCallback((page: number) => {
     startTransition(async () => {
@@ -472,6 +476,17 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
     return () => clearInterval(id)
   }, [data.jobs, refresh])
 
+  // Client-side filter across current page
+  const q = jobSearch.trim().toLowerCase()
+  const filteredJobs = q
+    ? data.jobs.filter(j =>
+        (j.report_name ?? "").toLowerCase().includes(q) ||
+        j.job_label.toLowerCase().includes(q) ||
+        j.job_type.toLowerCase().includes(q) ||
+        getStatusCfg(j.status).label.toLowerCase().includes(q)
+      )
+    : data.jobs
+
   const inProgress = data.jobs.filter(j => !getStatusCfg(j.status).terminal).length
   const pdfReady   = data.jobs.filter(j => j.pdf_url).length
   const failed     = data.jobs.filter(j => j.status.startsWith("failed")).length
@@ -479,17 +494,31 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center gap-3">
-        <p className="text-sm text-muted-foreground flex-1">
-          {data.total} total job{data.total !== 1 ? "s" : ""}
-        </p>
-        <div className="flex items-center gap-3 text-xs">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={jobSearch}
+            onChange={e => setJobSearch(e.target.value)}
+            placeholder="Search jobs…"
+            className="pl-9 h-8 text-sm"
+          />
+          {jobSearch && (
+            <button
+              onClick={() => setJobSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground leading-none text-base"
+            >×</button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 text-xs shrink-0">
           {inProgress > 0 && <span className="text-amber-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{inProgress} in progress</span>}
           {pdfReady   > 0 && <span className="text-green-600 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{pdfReady} PDFs</span>}
           {failed     > 0 && <span className="text-red-600 flex items-center gap-1"><XCircle className="w-3.5 h-3.5" />{failed} failed</span>}
           <span className="text-muted-foreground">{lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={isPending} className="h-7 px-2 gap-1 text-xs">
+        <Button variant="ghost" size="sm" onClick={refresh} disabled={isPending} className="h-7 px-2 gap-1 text-xs shrink-0">
           <RefreshCw className={`w-3 h-3 ${isPending ? "animate-spin" : ""}`} />
           Refresh
         </Button>
@@ -503,12 +532,24 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
         </div>
       ) : (
         <>
-          {isPending
-            ? <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />)}</div>
-            : <div className="space-y-2">{data.jobs.map(j => <JobRow key={j.id} job={j} />)}</div>
-          }
-          {data.totalPages > 1 && (
+          {isPending ? (
+            <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />)}</div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No jobs match "{jobSearch}"
+            </div>
+          ) : (
+            <div className="space-y-2">{filteredJobs.map(j => <JobRow key={j.id} job={j} />)}</div>
+          )}
+          {/* Only show pagination when not filtering */}
+          {!jobSearch && data.totalPages > 1 && (
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} pageSize={PAGE_SIZE} onPage={loadPage} />
+          )}
+          {jobSearch && (
+            <p className="text-xs text-muted-foreground text-center">
+              Showing {filteredJobs.length} of {data.jobs.length} jobs on this page
+              {data.totalPages > 1 && " — clear search to paginate"}
+            </p>
           )}
         </>
       )}

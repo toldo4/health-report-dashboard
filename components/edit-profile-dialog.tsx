@@ -32,40 +32,44 @@ import {
 } from "@/components/ui/select"
 
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required").max(256).optional(),
-  email: z.string().email().optional().or(z.literal("")),
-  sex: z.enum(["Male", "Female"]).optional(),
-  birth_year: z.coerce.number().min(1900).max(2026).optional(),
-  height: z.coerce.number().min(0).max(300).optional(), // cm
-  weight: z.coerce.number().min(0).max(650).optional(), // kg
+  name:       z.string().min(1, "Name is required").max(256),
+  email:      z.string().email("Invalid email").or(z.literal("")),
+  sex:        z.enum(["Male", "Female"]),
+  birth_year: z.string().min(1, "Birth year is required"),
+  height:     z.string(),
+  weight:     z.string(),
 })
+
+type FormValues = z.infer<typeof formSchema>
 
 export function EditProfileDialog({ profile }: { profile: any }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // Initialize with API data, safely falling back to undefined to let Zod handle it, 
-  // but rendering with ?? "" in the inputs below.
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: profile.name || "",
-      email: profile.email || "",
-      sex: profile.sex || "Male",
-      birth_year: profile.birth_year,
-      height: profile.height,
-      weight: profile.weight,
+      name:       profile.name       ?? "",
+      email:      profile.email      ?? "",
+      sex:        profile.sex        ?? "Male",
+      birth_year: profile.birth_year ? String(profile.birth_year) : "",
+      height:     profile.height     ? String(profile.height)     : "",
+      weight:     profile.weight     ? String(profile.weight)     : "",
     },
   })
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: FormValues) {
     setLoading(true)
     try {
-      // Clean up empty fields or zeros so we only send partial updates
-      const payload = Object.fromEntries(
-        Object.entries(values).filter(([_, v]) => v !== "" && v !== undefined && v !== 0 && !Number.isNaN(v))
-      )
-      
+      const payload: Record<string, unknown> = {
+        name:       values.name,
+        sex:        values.sex,
+        birth_year: parseInt(values.birth_year, 10),
+      }
+      if (values.email)  payload.email  = values.email
+      if (values.height) payload.height = parseFloat(values.height)
+      if (values.weight) payload.weight = parseFloat(values.weight)
+
       await updateProfile(profile.id, payload)
       setOpen(false)
     } catch (error) {
@@ -93,24 +97,24 @@ export function EditProfileDialog({ profile }: { profile: any }) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Name</FormLabel>
-                  <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email (Optional)</FormLabel>
-                  <FormControl><Input {...field} value={field.value ?? ""} /></FormControl>
+                  <FormControl><Input {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -131,14 +135,14 @@ export function EditProfileDialog({ profile }: { profile: any }) {
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="birth_year"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Birth Year</FormLabel>
-                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -152,19 +156,19 @@ export function EditProfileDialog({ profile }: { profile: any }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Height (cm)</FormLabel>
-                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="weight"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Weight (kg)</FormLabel>
-                    <FormControl><Input type="number" {...field} value={field.value ?? ""} /></FormControl>
+                    <FormControl><Input type="number" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
