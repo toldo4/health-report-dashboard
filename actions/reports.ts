@@ -1,13 +1,34 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import {
+  CATALOGUE,
+  BUNDLES,
+  type SimpleJobType,
+  type AnyJob,
+  type PaginatedJobs,
+  type ReportSummary,
+} from "@/lib/reports-catalogue"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`
 const CLIENT_ID = process.env.SELFDECODE_CLIENT_ID
 const CLIENT_SECRET = process.env.SELFDECODE_CLIENT_SECRET
+const B2B = `${BASE_URL}/service/b2b-integrations`
 
-async function getAccessToken() {
+const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
+  "health-overview":    `${B2B}/health-overview-job/`,
+  "clinical-overview":  `${B2B}/clinical-overview-job/`,
+  "longevity-screener": `${B2B}/longevity-screener-job/`,
+  "pgx":                `${B2B}/pgx-job/`,
+  "carrier-status":     `${B2B}/carrier-status-job/`,
+  "ancestry":           `${B2B}/ancestry-job/`,
+  "bio-chemistry":      `${B2B}/bio-chemistry-job/`,
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+async function getAccessToken(): Promise<string> {
   const res = await fetch(
     `${BASE_URL}/service/health-analysis/accounts/user/openid/token/`,
     {
@@ -22,115 +43,113 @@ async function getAccessToken() {
     }
   )
   if (!res.ok) throw new Error("Failed to get access token")
-  return (await res.json()).access_token as string
+  return (await res.json()).access_token
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export type ReportJobStatus =
-  | "init" | "profile_upserted" | "waiting_file_processing" | "file_processed"
-  | "waiting_report_gen" | "report_generated" | "waiting_pdf" | "pdf_generated"
-  | "failed_downloading_file" | "failed_uploading_file" | "failed_file_processing"
-  | "failed_report_gen" | "failed_pdf"
-
-export interface ReportJob {
-  id: string
-  status: ReportJobStatus
-  desired_status: string
-  profile_id: string
-  report_id?: string
-  report_name?: string       // enriched from report-summary lookup
-  pdf_url: string | null
-  error: string
-  handling_failed: boolean
-  created_at: string
-  finished_at: string | null
-  report_requested_at: string | null
-  pdf_requested_at: string | null
-}
-
-export interface ReportSummary {
-  id: string
-  name: string
-  report_type: string
-  area: string[]
-  is_deprecated: boolean
-  summary?: string
-}
-
-export interface PaginatedReportJobs {
-  jobs: ReportJob[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-async function fetchAllRawJobs(profileId: string, token: string): Promise<ReportJob[]> {
-  const res = await fetch(
-    `${BASE_URL}/service/b2b-integrations/report-job/?profile_id=${profileId}`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, cache: "no-store" }
-  )
-  if (!res.ok) throw new Error(`Failed to fetch report jobs: ${res.status}`)
+async function apiPost(url: string, token: string, body: object): Promise<any> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`POST ${url} → ${res.status}: ${await res.text()}`)
   return res.json()
 }
 
 async function buildNameMap(token: string): Promise<Map<string, string>> {
   try {
-    const res = await fetch(
-      `${BASE_URL}/service/b2b-integrations/report-summary/`,
-      {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-        next: { revalidate: 300 }, // cache 5 min — report names rarely change
-      }
-    )
+    const res = await fetch(`${B2B}/report-summary/`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      next: { revalidate: 300 },
+    })
     if (!res.ok) return new Map()
-    const summaries: ReportSummary[] = await res.json()
-    return new Map(summaries.map(s => [s.id, s.name]))
+    const list: ReportSummary[] = await res.json()
+    return new Map(list.map(s => [s.id, s.name]))
   } catch {
     return new Map()
   }
 }
 
-function enrich(jobs: ReportJob[], nameMap: Map<string, string>): ReportJob[] {
-  return jobs.map(job => ({
-    ...job,
-    report_name: job.report_id ? (nameMap.get(job.report_id) ?? undefined) : undefined,
-  }))
+function normalize(raw: any, jobType: string, jobLabel: string, nameMap?: Map<string, string>): AnyJob {
+  return {
+    id: raw.id,
+    status: raw.status ?? "unknown",
+    desired_status: raw.desired_status,
+    profile_id: raw.profile_id,
+    report_id: raw.report_id,
+    report_name: raw.report_id && nameMap ? (nameMap.get(raw.report_id) ?? undefined) : undefined,
+    job_type: jobType,
+    job_label: jobLabel,
+    pdf_url: raw.pdf_url ?? null,
+    error: raw.error,
+    handling_failed: raw.handling_failed,
+    created_at: raw.created_at,
+    finished_at: raw.finished_at ?? null,
+  }
 }
 
-// ─── Public actions ───────────────────────────────────────────────────────────
-
-/** Initial server-side load — all jobs enriched with names */
-export async function getReportJobs(profileId: string): Promise<ReportJob[]> {
-  const token = await getAccessToken()
-  const [jobs, nameMap] = await Promise.all([
-    fetchAllRawJobs(profileId, token),
-    buildNameMap(token),
-  ])
-  return enrich(jobs, nameMap)
-}
-
-/** Client-triggered refresh with pagination */
-export async function getReportJobsPaginated(
+async function listJobs(
+  endpoint: string,
   profileId: string,
-  page: number = 1,
-  pageSize: number = 15
-): Promise<PaginatedReportJobs> {
+  token: string,
+  jobType: string,
+  label: string,
+  nameMap?: Map<string, string>
+): Promise<AnyJob[]> {
+  try {
+    const res = await fetch(`${endpoint}?profile_id=${profileId}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const arr = Array.isArray(data) ? data : (data.results ?? [])
+    return arr.map((j: any) => normalize(j, jobType, label, nameMap))
+  } catch {
+    return []
+  }
+}
+
+// ─── Fetch all jobs ───────────────────────────────────────────────────────────
+
+export async function getAllJobs(profileId: string): Promise<AnyJob[]> {
   const token = await getAccessToken()
-  const [allJobs, nameMap] = await Promise.all([
-    fetchAllRawJobs(profileId, token),
-    buildNameMap(token),
+  const nameMap = await buildNameMap(token)
+
+  const results = await Promise.all([
+    listJobs(`${B2B}/report-job/`,                       profileId, token, "report-job",        "Report",                          nameMap),
+    listJobs(SIMPLE_ENDPOINTS["health-overview"],        profileId, token, "health-overview",   "Health Overview Report"),
+    listJobs(SIMPLE_ENDPOINTS["clinical-overview"],      profileId, token, "clinical-overview", "Medical Overview Report"),
+    listJobs(SIMPLE_ENDPOINTS["longevity-screener"],     profileId, token, "longevity-screener","Longevity Screener"),
+    listJobs(SIMPLE_ENDPOINTS["pgx"],                    profileId, token, "pgx",               "Medication Check (PGx)"),
+    listJobs(SIMPLE_ENDPOINTS["carrier-status"],         profileId, token, "carrier-status",    "Family Planning (Carrier Status)"),
+    listJobs(SIMPLE_ENDPOINTS["ancestry"],               profileId, token, "ancestry",          "Ancestry"),
+    listJobs(SIMPLE_ENDPOINTS["bio-chemistry"],          profileId, token, "bio-chemistry",     "Pathway Report"),
   ])
-  const enriched = enrich(allJobs, nameMap)
-  const total = enriched.length
+
+  return results.flat().sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+}
+
+export async function getAllJobsPaginated(
+  profileId: string,
+  page = 1,
+  pageSize = 15
+): Promise<PaginatedJobs> {
+  const all = await getAllJobs(profileId)
+  const total = all.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const safePage = Math.min(Math.max(1, page), totalPages)
-  const start = (safePage - 1) * pageSize
   return {
-    jobs: enriched.slice(start, start + pageSize),
+    jobs: all.slice((safePage - 1) * pageSize, safePage * pageSize),
     total,
     page: safePage,
     pageSize,
@@ -138,52 +157,117 @@ export async function getReportJobsPaginated(
   }
 }
 
-export async function generateAllReports(
+// ─── Generate ─────────────────────────────────────────────────────────────────
+
+export async function generateItem(
   profileId: string,
+  itemId: string,
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated"
 ): Promise<void> {
+  const item = CATALOGUE.find(c => c.id === itemId)
+  if (!item) throw new Error(`Unknown catalogue item: ${itemId}`)
   const token = await getAccessToken()
-  const res = await fetch(
-    `${BASE_URL}/service/b2b-integrations/report-job/generate-all/`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ profile_id: profileId, desired_status: desiredStatus }),
-      cache: "no-store",
-    }
-  )
-  if (!res.ok) throw new Error(`Failed to generate all reports: ${await res.text()}`)
+
+  if (item.type === "simple") {
+    await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
+      profile_id: profileId,
+      desired_status: desiredStatus,
+    })
+  } else {
+    const res = await fetch(
+      `${B2B}/report-summary/?name=${encodeURIComponent(item.searchQuery!)}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, cache: "no-store" }
+    )
+    if (!res.ok) throw new Error(`Failed to search reports: ${res.status}`)
+    const summaries: ReportSummary[] = await res.json()
+    const active = summaries.filter(s => !s.is_deprecated)
+    if (!active.length) throw new Error(`No reports found for "${item.searchQuery}"`)
+    await apiPost(`${B2B}/report-job/bulk-create/`, token, {
+      profile_id: profileId,
+      report_ids: active.map(s => s.id),
+      desired_status: desiredStatus,
+    })
+  }
+
   revalidatePath(`/profiles/${profileId}`)
 }
 
-export async function createBulkReportJobs(
+export async function generateBundle(
   profileId: string,
-  reportIds: string[],
+  bundleId: string,
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated"
-): Promise<ReportJob[]> {
+): Promise<{ succeeded: string[]; failed: Array<{ label: string; error: string }> }> {
+  const bundle = BUNDLES.find(b => b.id === bundleId)
+  if (!bundle) throw new Error(`Unknown bundle: ${bundleId}`)
   const token = await getAccessToken()
-  const res = await fetch(
-    `${BASE_URL}/service/b2b-integrations/report-job/bulk-create/`,
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ profile_id: profileId, report_ids: reportIds, desired_status: desiredStatus }),
-      cache: "no-store",
-    }
+
+  const seen = new Set<string>()
+  const succeeded: string[] = []
+  const failed: Array<{ label: string; error: string }> = []
+
+  await Promise.all(
+    bundle.itemIds.map(async (itemId) => {
+      const item = CATALOGUE.find(c => c.id === itemId)
+      if (!item) return
+      const dedupeKey = item.type === "simple" ? item.jobType! : `report:${item.searchQuery}`
+      if (seen.has(dedupeKey)) { succeeded.push(item.label); return }
+      seen.add(dedupeKey)
+
+      try {
+        if (item.type === "simple") {
+          await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
+            profile_id: profileId,
+            desired_status: desiredStatus,
+          })
+        } else {
+          const res = await fetch(
+            `${B2B}/report-summary/?name=${encodeURIComponent(item.searchQuery!)}`,
+            { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, cache: "no-store" }
+          )
+          const summaries: ReportSummary[] = res.ok ? await res.json() : []
+          const active = summaries.filter(s => !s.is_deprecated)
+          if (!active.length) throw new Error("No reports found")
+          await apiPost(`${B2B}/report-job/bulk-create/`, token, {
+            profile_id: profileId,
+            report_ids: active.map(s => s.id),
+            desired_status: desiredStatus,
+          })
+        }
+        succeeded.push(item.label)
+      } catch (e) {
+        failed.push({ label: item.label, error: e instanceof Error ? e.message : "Unknown error" })
+      }
+    })
   )
-  if (!res.ok) throw new Error(`Failed to bulk create report jobs: ${await res.text()}`)
+
   revalidatePath(`/profiles/${profileId}`)
-  return res.json()
+  return { succeeded, failed }
 }
 
 export async function searchReports(query: string): Promise<ReportSummary[]> {
   const token = await getAccessToken()
   const params = new URLSearchParams()
   if (query) params.set("name", query)
-  const res = await fetch(
-    `${BASE_URL}/service/b2b-integrations/report-summary/?${params}`,
-    { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }, cache: "no-store" }
-  )
+  const res = await fetch(`${B2B}/report-summary/?${params}`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    cache: "no-store",
+  })
   if (!res.ok) throw new Error(`Failed to search reports: ${res.status}`)
-  return res.json()
+  const all: ReportSummary[] = await res.json()
+  return all.filter(r => !r.is_deprecated)
+}
+
+export async function createBulkReportJobs(
+  profileId: string,
+  reportIds: string[],
+  desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated"
+) {
+  const token = await getAccessToken()
+  const result = await apiPost(`${B2B}/report-job/bulk-create/`, token, {
+    profile_id: profileId,
+    report_ids: reportIds,
+    desired_status: desiredStatus,
+  })
+  revalidatePath(`/profiles/${profileId}`)
+  return result
 }

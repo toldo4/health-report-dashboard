@@ -4,7 +4,7 @@ import Link from "next/link"
 import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User, Dna } from "lucide-react"
 import { getProfile } from "@/actions/profile"
 import { getGenomeJobs } from "@/actions/genome"
-import { getReportJobs } from "@/actions/reports"
+import { getAllJobs } from "@/actions/reports"
 import { GenomeUpload } from "@/components/genome-upload"
 import { GenomeJobsList } from "@/components/genome-jobs-list"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
@@ -54,7 +54,7 @@ export default async function ProfileDetailPage({
   const [profile, genomeJobs, reportJobs] = await Promise.all([
     getProfile(id).catch(() => null),
     getGenomeJobs(id).catch(() => []),
-    getReportJobs(id).catch(() => []),
+    getAllJobs(id).catch(() => []),
   ])
 
   if (!profile) notFound()
