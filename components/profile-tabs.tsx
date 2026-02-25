@@ -1,32 +1,43 @@
 "use client"
 
 import { useState } from "react"
-import { Dna, FileText } from "lucide-react"
+import { Dna, FileText, FlaskConical, ShoppingBag } from "lucide-react"
 
 interface ProfileTabsProps {
-  genomeCount: number
-  reportCount: number
-  genomeContent: React.ReactNode
+  genomeCount:    number
+  reportCount:    number
+  kitCount:       number
+  orderCount:     number
+  genomeContent:  React.ReactNode
   reportsContent: React.ReactNode
+  kitContent:     React.ReactNode
+  ordersContent:  React.ReactNode
 }
+
+type TabId = "genome" | "reports" | "dna-kit" | "orders"
 
 export function ProfileTabs({
   genomeCount,
   reportCount,
+  kitCount,
+  orderCount,
   genomeContent,
   reportsContent,
+  kitContent,
+  ordersContent,
 }: ProfileTabsProps) {
-  const [active, setActive] = useState<"genome" | "reports">("genome")
+  const [active, setActive] = useState<TabId>("genome")
 
-  const tabs = [
-    { id: "genome",  label: "Genome",  icon: Dna,      count: genomeCount  },
-    { id: "reports", label: "Reports", icon: FileText,  count: reportCount  },
-  ] as const
+  const tabs: Array<{ id: TabId; label: string; icon: React.ElementType; count: number }> = [
+    { id: "genome",   label: "Genome",   icon: Dna,          count: genomeCount  },
+    { id: "reports",  label: "Reports",  icon: FileText,     count: reportCount  },
+    { id: "dna-kit",  label: "DNA Kits", icon: FlaskConical, count: kitCount     },
+    { id: "orders",   label: "Orders",   icon: ShoppingBag,  count: orderCount   },
+  ]
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="flex gap-1 mb-4 bg-muted/50 p-1 rounded-lg border border-border w-fit">
+      <div className="flex gap-1 mb-4 bg-muted/50 p-1 rounded-lg border border-border w-fit flex-wrap">
         {tabs.map(({ id, label, icon: Icon, count }) => (
           <button
             key={id}
@@ -43,9 +54,7 @@ export function ProfileTabs({
             {label}
             {count > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                active === id
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground"
+                active === id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
               }`}>
                 {count}
               </span>
@@ -54,9 +63,10 @@ export function ProfileTabs({
         ))}
       </div>
 
-      {/* Tab content */}
       {active === "genome"  && genomeContent}
       {active === "reports" && reportsContent}
+      {active === "dna-kit" && kitContent}
+      {active === "orders"  && ordersContent}
     </div>
   )
 }

@@ -1,14 +1,18 @@
 // app/profiles/[id]/page.tsx
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User, Dna } from "lucide-react"
+import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User, Dna, FlaskConical } from "lucide-react"
 import { getProfile } from "@/actions/profile"
 import { getGenomeJobs } from "@/actions/genome"
 import { getAllJobs } from "@/actions/reports"
+import { getDnaKitJobs } from "@/actions/dna-kit"
+import { getOrderRows } from "@/actions/orders"
 import { GenomeUpload } from "@/components/genome-upload"
 import { GenomeJobsList } from "@/components/genome-jobs-list"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { ReportJobsPanel } from "@/components/report-jobs-panel"
+import { DnaKitPanel } from "@/components/dna-kit-panel"
+import { OrdersPanel } from "@/components/orders-panel"
 import { ProfileTabs } from "@/components/profile-tabs"
 
 function getInitials(name: string) {
@@ -51,16 +55,19 @@ export default async function ProfileDetailPage({
 }) {
   const { id } = await params
 
-  const [profile, genomeJobs, reportJobs] = await Promise.all([
+  const [profile, genomeJobs, reportJobs, kitJobs, orderRows] = await Promise.all([
     getProfile(id).catch(() => null),
     getGenomeJobs(id).catch(() => []),
     getAllJobs(id).catch(() => []),
+    getDnaKitJobs(id).catch(() => []),
+    getOrderRows().catch(() => []),
   ])
 
   if (!profile) notFound()
 
   const hasProcessedGenome = genomeJobs.some((j: any) => j.status === "file_processed")
-  const pdfCount = reportJobs.filter((j: any) => j.pdf_url).length
+  const pdfCount           = reportJobs.filter((j: any) => j.pdf_url).length
+  const completedKits      = kitJobs.filter((j: any) => j.status === "completed").length
 
   const birthDateStr = [
     profile.birth_year,
@@ -93,6 +100,14 @@ export default async function ProfileDetailPage({
     </SectionCard>
   )
 
+  const kitContent = (
+    <DnaKitPanel profileId={profile.id} initialJobs={kitJobs} />
+  )
+
+  const ordersContent = (
+    <OrdersPanel profileId={profile.id} initialRows={orderRows} />
+  )
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <Link
@@ -123,6 +138,11 @@ export default async function ProfileDetailPage({
                 {pdfCount} PDF{pdfCount > 1 ? "s" : ""} ready
               </span>
             )}
+            {completedKits > 0 && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+                <FlaskConical className="w-3 h-3" /> {completedKits} kit{completedKits > 1 ? "s" : ""} complete
+              </span>
+            )}
           </div>
           {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
           <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
@@ -147,8 +167,12 @@ export default async function ProfileDetailPage({
           <ProfileTabs
             genomeCount={genomeJobs.length}
             reportCount={reportJobs.length}
+            kitCount={kitJobs.length}
+            orderCount={orderRows.length}
             genomeContent={genomeContent}
             reportsContent={reportsContent}
+            kitContent={kitContent}
+            ordersContent={ordersContent}
           />
         </div>
       </div>
