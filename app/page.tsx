@@ -20,7 +20,7 @@ export default async function DashboardPage() {
     <main className="container mx-auto py-10 px-4">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">SelfDecode Profiles</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Nutrigenix Profiles</h1>
           <p className="text-muted-foreground mt-2">Manage user profiles and genome files.</p>
         </div>
         <CreateProfileDialog />

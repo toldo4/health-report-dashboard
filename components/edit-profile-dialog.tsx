@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { updateProfile } from "@/actions/profile"
+import { ETHNICITIES } from "@/lib/ethnicities"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,12 +33,14 @@ import {
 } from "@/components/ui/select"
 
 const formSchema = z.object({
-  name:       z.string().min(1, "Name is required").max(256),
-  email:      z.string().email("Invalid email").or(z.literal("")),
-  sex:        z.enum(["Male", "Female"]),
-  birth_year: z.string().min(1, "Birth year is required"),
-  height:     z.string(),
-  weight:     z.string(),
+  name:                z.string().min(1, "Name is required").max(256),
+  email:               z.string().email("Invalid email").or(z.literal("")),
+  sex:                 z.enum(["Male", "Female"]),
+  birth_year:          z.string().min(1, "Birth year is required"),
+  height:              z.string(),
+  weight:              z.string(),
+  ethnicity:           z.string(),
+  secondary_ethnicity: z.string(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -49,12 +52,14 @@ export function EditProfileDialog({ profile }: { profile: any }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name:       profile.name       ?? "",
-      email:      profile.email      ?? "",
-      sex:        profile.sex        ?? "Male",
-      birth_year: profile.birth_year ? String(profile.birth_year) : "",
-      height:     profile.height     ? String(profile.height)     : "",
-      weight:     profile.weight     ? String(profile.weight)     : "",
+      name:                profile.name        ?? "",
+      email:               profile.email       ?? "",
+      sex:                 profile.sex         ?? "Male",
+      birth_year:          profile.birth_year  ? String(profile.birth_year) : "",
+      height:              profile.height      ? String(profile.height)     : "",
+      weight:              profile.weight      ? String(profile.weight)     : "",
+      ethnicity:           profile.ethnicity           ?? "",
+      secondary_ethnicity: profile.secondary_ethnicity ?? "",
     },
   })
 
@@ -66,9 +71,11 @@ export function EditProfileDialog({ profile }: { profile: any }) {
         sex:        values.sex,
         birth_year: parseInt(values.birth_year, 10),
       }
-      if (values.email)  payload.email  = values.email
-      if (values.height) payload.height = parseFloat(values.height)
-      if (values.weight) payload.weight = parseFloat(values.weight)
+      if (values.email)               payload.email               = values.email
+      if (values.height)              payload.height              = parseFloat(values.height)
+      if (values.weight)              payload.weight              = parseFloat(values.weight)
+      if (values.ethnicity)           payload.ethnicity           = values.ethnicity
+      if (values.secondary_ethnicity) payload.secondary_ethnicity = values.secondary_ethnicity
 
       await updateProfile(profile.id, payload)
       setOpen(false)
@@ -80,17 +87,20 @@ export function EditProfileDialog({ profile }: { profile: any }) {
     }
   }
 
+  const primaryEthnicity = form.watch("ethnicity")
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">Edit</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Profile</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
             <FormField
               control={form.control}
               name="name"
@@ -142,7 +152,9 @@ export function EditProfileDialog({ profile }: { profile: any }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Birth Year</FormLabel>
-                    <FormControl><Input type="number" {...field} /></FormControl>
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -156,7 +168,9 @@ export function EditProfileDialog({ profile }: { profile: any }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Height (cm)</FormLabel>
-                    <FormControl><Input type="number" {...field} /></FormControl>
+                    <FormControl>
+                      <Input type="number" placeholder="180" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -168,12 +182,73 @@ export function EditProfileDialog({ profile }: { profile: any }) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Weight (kg)</FormLabel>
-                    <FormControl><Input type="number" {...field} /></FormControl>
+                    <FormControl>
+                      <Input type="number" placeholder="75" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="ethnicity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primary Ethnicity (Optional)</FormLabel>
+                  <Select
+                    onValueChange={(val) => {
+                      field.onChange(val)
+                      // Clear secondary if it now matches primary
+                      if (form.getValues("secondary_ethnicity") === val) {
+                        form.setValue("secondary_ethnicity", "")
+                      }
+                    }}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select ethnicity" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ETHNICITIES.map(e => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="secondary_ethnicity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Secondary Ethnicity (Optional)</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!primaryEthnicity}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select secondary ethnicity" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ETHNICITIES.filter(e => e !== primaryEthnicity).map(e => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <Button type="submit" disabled={loading} className="w-full mt-2">
               {loading ? "Updating..." : "Save Changes"}

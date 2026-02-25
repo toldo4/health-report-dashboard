@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { createProfile } from "@/actions/profile"
+import { ETHNICITIES } from "@/lib/ethnicities"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -31,15 +32,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-// All fields are strings in the form — we convert numbers manually in onSubmit.
-// This avoids the z.coerce / z.transform input↔output mismatch with zodResolver.
 const formSchema = z.object({
-  name:       z.string().min(1, "Name is required").max(256),
-  email:      z.string().email("Invalid email").or(z.literal("")),
-  sex:        z.enum(["Male", "Female"]),
-  birth_year: z.string().min(1, "Birth year is required"),
-  height:     z.string(),
-  weight:     z.string(),
+  name:                z.string().min(1, "Name is required").max(256),
+  email:               z.string().email("Invalid email").or(z.literal("")),
+  sex:                 z.enum(["Male", "Female"]),
+  birth_year:          z.string().min(1, "Birth year is required"),
+  height:              z.string(),
+  weight:              z.string(),
+  ethnicity:           z.string(),
+  secondary_ethnicity: z.string(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -51,12 +52,14 @@ export function CreateProfileDialog() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      email: "",
-      sex: "Male",
-      birth_year: "",
-      height: "",
-      weight: "",
+      name:                "",
+      email:               "",
+      sex:                 "Male",
+      birth_year:          "",
+      height:              "",
+      weight:              "",
+      ethnicity:           "",
+      secondary_ethnicity: "",
     },
   })
 
@@ -64,13 +67,15 @@ export function CreateProfileDialog() {
     setLoading(true)
     try {
       const payload: Record<string, unknown> = {
-        name: values.name,
-        sex: values.sex,
+        name:       values.name,
+        sex:        values.sex,
         birth_year: parseInt(values.birth_year, 10),
       }
-      if (values.email)  payload.email  = values.email
-      if (values.height) payload.height = parseFloat(values.height)
-      if (values.weight) payload.weight = parseFloat(values.weight)
+      if (values.email)               payload.email               = values.email
+      if (values.height)              payload.height              = parseFloat(values.height)
+      if (values.weight)              payload.weight              = parseFloat(values.weight)
+      if (values.ethnicity)           payload.ethnicity           = values.ethnicity
+      if (values.secondary_ethnicity) payload.secondary_ethnicity = values.secondary_ethnicity
 
       await createProfile(payload)
       setOpen(false)
@@ -88,12 +93,13 @@ export function CreateProfileDialog() {
       <DialogTrigger asChild>
         <Button>Create Profile</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Profile</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
             <FormField
               control={form.control}
               name="name"
@@ -187,6 +193,56 @@ export function CreateProfileDialog() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="ethnicity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primary Ethnicity (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select ethnicity" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ETHNICITIES.map(e => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="secondary_ethnicity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Secondary Ethnicity (Optional)</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!form.watch("ethnicity")}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select secondary ethnicity" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ETHNICITIES.filter(e => e !== form.watch("ethnicity")).map(e => (
+                        <SelectItem key={e} value={e}>{e}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <Button type="submit" disabled={loading} className="w-full mt-2">
               {loading ? "Creating..." : "Save Profile"}
