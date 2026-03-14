@@ -1,4 +1,4 @@
-// app/profiles/[id]/page.tsx
+import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User, Dna, FlaskConical } from "lucide-react"
@@ -14,6 +14,8 @@ import { ReportJobsPanel } from "@/components/report-jobs-panel"
 import { DnaKitPanel } from "@/components/dna-kit-panel"
 import { OrdersPanel } from "@/components/orders-panel"
 import { ProfileTabs } from "@/components/profile-tabs"
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getInitials(name: string) {
   return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -48,6 +50,8 @@ function SectionCard({ title, description, children }: {
   )
 }
 
+// ─── Main Page Shell ─────────────────────────────────────────────────────────
+
 export default async function ProfileDetailPage({
   params,
 }: {
@@ -55,15 +59,98 @@ export default async function ProfileDetailPage({
 }) {
   const { id } = await params
 
-  const [profile, genomeJobs, reportJobs, kitJobs, orderRows] = await Promise.all([
-    getProfile(id).catch(() => null),
-    getGenomeJobs(id).catch(() => []),
-    getAllJobs(id).catch(() => []),
-    getDnaKitJobs(id).catch(() => []),
-    getOrderRows().catch(() => []),
-  ])
+  // 1. Fetch only the profile first (fast)
+  const profile = await getProfile(id).catch(() => null)
 
   if (!profile) notFound()
+
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to Profiles
+      </Link>
+
+      {/* 2. Wrap the heavy lifting in Suspense to unblock the initial page load */}
+      <Suspense fallback={<ProfileSkeleton profile={profile} />}>
+        <ProfileData profile={profile} />
+      </Suspense>
+    </div>
+  )
+}
+
+// ─── Loading Skeleton ────────────────────────────────────────────────────────
+
+function ProfileSkeleton({ profile }: { profile: any }) {
+  const birthDateStr = [
+    profile.birth_year,
+    profile.birth_month
+      ? new Date(0, profile.birth_month - 1).toLocaleString("en", { month: "long" })
+      : null,
+    profile.birth_day,
+  ].filter(Boolean).reverse().join(" ")
+
+  return (
+    <>
+      <div className="flex items-start gap-5 mb-8">
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
+          style={{ background: "hsl(221 83% 53%)" }}
+        >
+          {getInitials(profile.name)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-semibold text-foreground">{profile.name}</h1>
+            <div className="h-6 w-24 bg-muted rounded-full animate-pulse" />
+          </div>
+          {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
+          <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
+        </div>
+        <EditProfileDialog profile={profile} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          {/* We already have the profile data, so we can render it immediately! */}
+          <SectionCard title="Profile Details">
+            <InfoRow icon={User}     label="Biological Sex"      value={profile.sex} />
+            <InfoRow icon={Calendar} label="Date of Birth"       value={birthDateStr || profile.birth_year} />
+            <InfoRow icon={Ruler}    label="Height"              value={profile.height ? `${profile.height} cm` : null} />
+            <InfoRow icon={Weight}   label="Weight"              value={profile.weight ? `${profile.weight} kg` : null} />
+            <InfoRow icon={Mail}     label="Email"               value={profile.email} />
+            <InfoRow icon={Globe}    label="Primary Ethnicity"   value={profile.ethnicity} />
+            <InfoRow icon={Globe}    label="Secondary Ethnicity" value={profile.secondary_ethnicity} />
+          </SectionCard>
+        </div>
+
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex gap-2 mb-4">
+            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
+            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
+            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
+            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
+          </div>
+          <div className="h-[400px] bg-card border border-border rounded-xl animate-pulse" />
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Heavy Data Component ────────────────────────────────────────────────────
+
+async function ProfileData({ profile }: { profile: any }) {
+  // 3. Fetch all jobs and sub-data concurrently
+  const [genomeJobs, reportJobs, kitJobs, orderRows] = await Promise.all([
+    getGenomeJobs(profile.id).catch(() => []),
+    getAllJobs(profile.id).catch(() => []),
+    getDnaKitJobs(profile.id).catch(() => []),
+    getOrderRows().catch(() => []),
+  ])
 
   const hasProcessedGenome = genomeJobs.some((j: any) => j.status === "file_processed")
   const pdfCount           = reportJobs.filter((j: any) => j.pdf_url).length
@@ -109,15 +196,7 @@ export default async function ProfileDetailPage({
   )
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Profiles
-      </Link>
-
+    <>
       <div className="flex items-start gap-5 mb-8">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
@@ -176,6 +255,6 @@ export default async function ProfileDetailPage({
           />
         </div>
       </div>
-    </div>
+    </>
   )
 }

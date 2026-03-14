@@ -9,12 +9,26 @@ import {
   type PaginatedJobs,
   type ReportSummary,
 } from "@/lib/reports-catalogue"
+import { log } from "console"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`
 const CLIENT_ID = process.env.SELFDECODE_CLIENT_ID
 const CLIENT_SECRET = process.env.SELFDECODE_CLIENT_SECRET
 const B2B = `${BASE_URL}/service/b2b-integrations`
+
+// ─── Shared Configurations ────────────────────────────────────────────────────
+
+const DEFAULT_PDF_CONFIG = {
+  white_labelled: true,
+  company_profile: {
+    professional_name: "NutriGenix", // Primary name displayed
+    company_name: "NutriGenix",      // Secondary name
+    email: "milad.mansoori@nutrigenix.ae",
+    address: "Meydan, Dubai.",
+    logo: "https://health-report-dashboard.vercel.app/logo.png",
+  }
+}
 
 const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
   "health-overview":    `${B2B}/health-overview-job/`,
@@ -26,7 +40,7 @@ const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
   "bio-chemistry":      `${B2B}/bio-chemistry-job/`,
 }
 
-// ─── Auth ─────────────────────────────────────────────────────────────────────
+// ─── Auth & Helpers (Unchanged) ───────────────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
   const res = await fetch(
@@ -45,8 +59,6 @@ async function getAccessToken(): Promise<string> {
   if (!res.ok) throw new Error("Failed to get access token")
   return (await res.json()).access_token
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function apiPost(url: string, token: string, body: object): Promise<any> {
   const res = await fetch(url, {
@@ -117,7 +129,7 @@ async function listJobs(
   }
 }
 
-// ─── Fetch all jobs ───────────────────────────────────────────────────────────
+// ─── Fetch all jobs ───────────────────────────────────────────────
 
 export async function getAllJobs(profileId: string): Promise<AnyJob[]> {
   const token = await getAccessToken()
@@ -172,6 +184,7 @@ export async function generateItem(
     await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
       profile_id: profileId,
       desired_status: desiredStatus,
+      pdf_config: DEFAULT_PDF_CONFIG // Applied here
     })
   } else {
     const res = await fetch(
@@ -186,6 +199,7 @@ export async function generateItem(
       profile_id: profileId,
       report_ids: active.map(s => s.id),
       desired_status: desiredStatus,
+      pdf_config: DEFAULT_PDF_CONFIG // Applied here
     })
   }
 
@@ -218,6 +232,7 @@ export async function generateBundle(
           await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
             profile_id: profileId,
             desired_status: desiredStatus,
+            pdf_config: DEFAULT_PDF_CONFIG // Applied here
           })
         } else {
           const res = await fetch(
@@ -231,6 +246,7 @@ export async function generateBundle(
             profile_id: profileId,
             report_ids: active.map(s => s.id),
             desired_status: desiredStatus,
+            pdf_config: DEFAULT_PDF_CONFIG // Applied here
           })
         }
         succeeded.push(item.label)
@@ -267,6 +283,7 @@ export async function createBulkReportJobs(
     profile_id: profileId,
     report_ids: reportIds,
     desired_status: desiredStatus,
+    pdf_config: DEFAULT_PDF_CONFIG // Applied here
   })
   revalidatePath(`/profiles/${profileId}`)
   return result
