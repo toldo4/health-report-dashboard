@@ -1,5 +1,7 @@
 "use server"
 
+import { revalidatePath } from "next/cache"
+
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`
 const CLIENT_ID = process.env.SELFDECODE_CLIENT_ID
@@ -92,6 +94,23 @@ export interface OrderRow {
   sampleError: string | null
 }
 
+export interface OrderLineItemInput {
+  item: string; // e.g., "dna-kit", "dna-kit-unbranded-us", "dna-kit-unbranded-eu"
+  quantity: number;
+}
+
+export interface CreateOrderPayload {
+  ship_to_name: string;
+  ship_to_email?: string;
+  phone_number: string;
+  ship_to_address: string;
+  ship_to_city: string;
+  ship_to_state: string;
+  ship_to_postal_code: string;
+  ship_to_country: string;
+  line_items: OrderLineItemInput[];
+}
+
 // ─── Fetch orders ─────────────────────────────────────────────────────────────
 
 export async function getOrders(): Promise<Order[]> {
@@ -149,4 +168,30 @@ export async function getOrderRows(): Promise<OrderRow[]> {
   }
 
   return rows
+}
+
+// ─── Create a new order ───────────────────────────────────────────────────────
+
+export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
+  const token = await getAccessToken()
+  const res = await fetch(`${B2B}/order/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Failed to create order (${res.status}): ${text}`)
+  }
+
+  // Revalidate the root page (or whichever page holds the orders panel) 
+  // so the table updates immediately
+  revalidatePath("/") 
+  return res.json()
 }

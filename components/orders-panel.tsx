@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { getOrderRows, type OrderRow, type OrderStatus, type SampleStatus } from "@/actions/orders"
 import { registerDnaKit } from "@/actions/dna-kit"
+import { CreateOrderDialog } from "./create-order-dialog"
 
 // ─── Status configs ───────────────────────────────────────────────────────────
 
@@ -297,10 +298,14 @@ export function OrdersPanel({
           )}
         </div>
 
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={isPending} className="h-8 px-2 gap-1.5 text-xs shrink-0">
-          <RefreshCw className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`} />
-          {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={refresh} disabled={isPending} className="h-8 px-2 gap-1.5 text-xs shrink-0">
+            <RefreshCw className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`} />
+            {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+          </Button>
+          
+          <CreateOrderDialog onOrderCreated={refresh} />
+        </div>
       </div>
 
       {/* Table */}
