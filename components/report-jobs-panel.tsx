@@ -14,6 +14,7 @@ import {
   generateBundle,
   searchReports,
   createBulkReportJobs,
+  type ReportSelection
 } from "@/actions/reports"
 import {
   CATALOGUE,
@@ -31,19 +32,19 @@ const STATUS_CFG: Record<string, {
   label: string; color: string; bg: string; dot: string
   icon: React.ElementType; terminal: boolean
 }> = {
-  pdf_generated:           { label: "PDF Ready",      color: "text-green-700",  bg: "bg-green-50 border-green-200",   dot: "bg-green-500",               icon: CheckCircle2, terminal: true  },
-  report_generated:        { label: "Report Ready",   color: "text-blue-700",   bg: "bg-blue-50 border-blue-200",     dot: "bg-blue-500",                icon: CheckCircle2, terminal: true  },
-  completed:               { label: "Completed",      color: "text-green-700",  bg: "bg-green-50 border-green-200",   dot: "bg-green-500",               icon: CheckCircle2, terminal: true  },
-  waiting_pdf:             { label: "Generating PDF", color: "text-amber-700",  bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse", icon: Clock,        terminal: false },
-  waiting_report_gen:      { label: "Generating",     color: "text-amber-700",  bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse", icon: Clock,        terminal: false },
-  waiting:                 { label: "Processing",     color: "text-amber-700",  bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse", icon: Clock,        terminal: false },
-  file_processed:          { label: "File Ready",     color: "text-sky-700",    bg: "bg-sky-50 border-sky-200",       dot: "bg-sky-400",                 icon: Clock,        terminal: false },
-  waiting_file_processing: { label: "Processing",     color: "text-amber-700",  bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse", icon: Clock,        terminal: false },
-  init:                    { label: "Queued",         color: "text-gray-600",   bg: "bg-gray-50 border-gray-200",     dot: "bg-gray-400 animate-pulse",  icon: Clock,        terminal: false },
-  failed_report_gen:       { label: "Failed",         color: "text-red-700",    bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                 icon: XCircle,      terminal: true  },
-  failed_pdf:              { label: "PDF Failed",     color: "text-red-700",    bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                 icon: XCircle,      terminal: true  },
-  failed_file_processing:  { label: "File Failed",    color: "text-red-700",    bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                 icon: XCircle,      terminal: true  },
-  failed:                  { label: "Failed",         color: "text-red-700",    bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                 icon: XCircle,      terminal: true  },
+  pdf_generated:           { label: "PDF Ready",      color: "text-green-700", bg: "bg-green-50 border-green-200",   dot: "bg-green-500",                    icon: CheckCircle2, terminal: true  },
+  report_generated:        { label: "Report Ready",   color: "text-blue-700",  bg: "bg-blue-50 border-blue-200",     dot: "bg-blue-500",                     icon: CheckCircle2, terminal: true  },
+  completed:               { label: "Completed",      color: "text-green-700", bg: "bg-green-50 border-green-200",   dot: "bg-green-500",                    icon: CheckCircle2, terminal: true  },
+  waiting_pdf:             { label: "Generating PDF", color: "text-amber-700", bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse",      icon: Clock,        terminal: false },
+  waiting_report_gen:      { label: "Generating",     color: "text-amber-700", bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse",      icon: Clock,        terminal: false },
+  waiting:                 { label: "Processing",     color: "text-amber-700", bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse",      icon: Clock,        terminal: false },
+  file_processed:          { label: "File Ready",     color: "text-sky-700",   bg: "bg-sky-50 border-sky-200",       dot: "bg-sky-400",                      icon: Clock,        terminal: false },
+  waiting_file_processing: { label: "Processing",     color: "text-amber-700", bg: "bg-amber-50 border-amber-200",   dot: "bg-amber-400 animate-pulse",      icon: Clock,        terminal: false },
+  init:                    { label: "Queued",         color: "text-gray-600",  bg: "bg-gray-50 border-gray-200",     dot: "bg-gray-400 animate-pulse",       icon: Clock,        terminal: false },
+  failed_report_gen:       { label: "Failed",         color: "text-red-700",   bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                      icon: XCircle,      terminal: true  },
+  failed_pdf:              { label: "PDF Failed",     color: "text-red-700",   bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                      icon: XCircle,      terminal: true  },
+  failed_file_processing:  { label: "File Failed",    color: "text-red-700",   bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                      icon: XCircle,      terminal: true  },
+  failed:                  { label: "Failed",         color: "text-red-700",   bg: "bg-red-50 border-red-200",       dot: "bg-red-500",                      icon: XCircle,      terminal: true  },
 }
 
 function getStatusCfg(status: string) {
@@ -71,8 +72,6 @@ function JobRow({ job }: { job: AnyJob }) {
   const [expanded, setExpanded] = useState(false)
   const cfg = getStatusCfg(job.status)
   const Icon = cfg.icon
-
-  // Display name: prefer report_name, then job_label, then job_type
   const displayName = job.report_name ?? job.job_label
 
   return (
@@ -134,7 +133,7 @@ function Pagination({ page, totalPages, total, pageSize, onPage }: {
   onPage: (p: number) => void
 }) {
   const start = (page - 1) * pageSize + 1
-  const end   = Math.min(page * pageSize, total)
+  const end = Math.min(page * pageSize, total)
   const pages: (number | "…")[] = []
   if (totalPages <= 7) {
     for (let i = 1; i <= totalPages; i++) pages.push(i)
@@ -156,9 +155,9 @@ function Pagination({ page, totalPages, total, pageSize, onPage }: {
         {pages.map((p, i) => p === "…"
           ? <span key={`e${i}`} className="px-1 text-xs text-muted-foreground">…</span>
           : <button key={p} onClick={() => onPage(p as number)}
-              className={`w-7 h-7 rounded text-xs font-medium transition-colors ${p === page ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}>
-              {p}
-            </button>
+            className={`w-7 h-7 rounded text-xs font-medium transition-colors ${p === page ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"}`}>
+            {p}
+          </button>
         )}
         <button onClick={() => onPage(page + 1)} disabled={page === totalPages}
           className="p-1.5 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground">
@@ -172,25 +171,27 @@ function Pagination({ page, totalPages, total, pageSize, onPage }: {
 // ─── Catalogue tab ────────────────────────────────────────────────────────────
 
 function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerated: () => void }) {
-  const [loadingItem, setLoadingItem]     = useState<string | null>(null)
+  const [loadingItem, setLoadingItem] = useState<string | null>(null)
   const [loadingBundle, setLoadingBundle] = useState<string | null>(null)
-  const [errors, setErrors]               = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
   const [bundleResults, setBundleResults] = useState<Record<string, { succeeded: string[]; failed: Array<{ label: string; error: string }> } | null>>({})
   const [catalogueSearch, setCatalogueSearch] = useState("")
 
-  // Custom (API) report search state
-  const [searchQuery, setSearchQuery]         = useState("")
-  const [searchResults, setSearchResults]     = useState<ReportSummary[]>([])
-  const [selectedReports, setSelectedReports] = useState<ReportSummary[]>([])
-  const [searching, setSearching]             = useState(false)
-  const [customLoading, setCustomLoading]     = useState(false)
+  // Selection state — only used by items where showSelection === true
+  const [selections, setSelections] = useState<Record<string, ReportSelection>>({})
 
-  // Filter catalogue by local search
+  // Custom report search state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<ReportSummary[]>([])
+  const [selectedReports, setSelectedReports] = useState<ReportSummary[]>([])
+  const [searching, setSearching] = useState(false)
+  const [customLoading, setCustomLoading] = useState(false)
+
   const filteredCatalogue = catalogueSearch.trim()
     ? CATALOGUE.filter(item =>
-        item.label.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
-        item.note?.toLowerCase().includes(catalogueSearch.toLowerCase())
-      )
+      item.label.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+      item.note?.toLowerCase().includes(catalogueSearch.toLowerCase())
+    )
     : CATALOGUE
 
   useEffect(() => {
@@ -208,7 +209,10 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     setLoadingItem(itemId)
     setErrors(e => ({ ...e, [itemId]: "" }))
     try {
-      await generateItem(profileId, itemId)
+      // Only pass the selection value for items that support it; others always use "all"
+      const item = CATALOGUE.find(c => c.id === itemId)
+      const selection: ReportSelection = item?.showSelection ? (selections[itemId] ?? "all") : "all"
+      await generateItem(profileId, itemId, "pdf_generated", selection)
       onGenerated()
     } catch (e) {
       setErrors(prev => ({ ...prev, [itemId]: e instanceof Error ? e.message : "Failed" }))
@@ -221,7 +225,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     setLoadingBundle(bundleId)
     setBundleResults(r => ({ ...r, [bundleId]: null }))
     try {
-      const result = await generateBundle(profileId, bundleId)
+      const result = await generateBundle(profileId, bundleId, "pdf_generated")
       setBundleResults(r => ({ ...r, [bundleId]: result }))
       onGenerated()
     } catch (e) {
@@ -260,7 +264,6 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
           <h3 className="text-sm font-semibold text-foreground">Individual Reports</h3>
         </div>
 
-        {/* Local filter */}
         <div className="relative mb-2">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -285,6 +288,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
           ) : filteredCatalogue.map(item => {
             const isLoading = loadingItem === item.id
             const err = errors[item.id]
+
             return (
               <div key={item.id} className="px-4 py-3 flex items-center gap-3 hover:bg-muted/30 transition-colors">
                 <div className="flex-1 min-w-0">
@@ -294,20 +298,39 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
                       <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{item.note}</span>
                     )}
                   </div>
-                  {err && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{err}</p>}
+                  {err && (
+                    <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />{err}
+                    </p>
+                  )}
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleItem(item.id)}
-                  disabled={isLoading || !!loadingItem}
-                  className="gap-1.5 shrink-0"
-                >
-                  {isLoading
-                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
-                    : <><Zap className="w-3.5 h-3.5" />Generate</>
-                  }
-                </Button>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Only render the selection dropdown for Health Reports */}
+                  {item.showSelection && (
+                    <select
+                      value={selections[item.id] ?? "all"}
+                      onChange={e => setSelections(s => ({ ...s, [item.id]: e.target.value as ReportSelection }))}
+                      className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="all">Summary + Reports</option>
+                      <option value="summary_only">Summary Only</option>
+                      <option value="report_only">Reports Only</option>
+                    </select>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleItem(item.id)}
+                    disabled={isLoading || !!loadingItem}
+                    className="gap-1.5"
+                  >
+                    {isLoading
+                      ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
+                      : <><Zap className="w-3.5 h-3.5" />Generate</>
+                    }
+                  </Button>
+                </div>
               </div>
             )
           })}
@@ -328,52 +351,54 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
             const items = bundle.itemIds.map(id => CATALOGUE.find(c => c.id === id)).filter(Boolean) as typeof CATALOGUE
 
             return (
-              <div key={bundle.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+              <div key={bundle.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">{bundle.label}</p>
-                  {bundle.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{bundle.description}</p>
-                  )}
-                </div>
-
-                {/* Item list */}
-                <div className="space-y-1">
-                  {items.map(item => (
-                    <div key={item.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className="w-1 h-1 rounded-full bg-muted-foreground/40" />
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Result feedback */}
-                {result && (
-                  <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs space-y-1">
-                    {result.succeeded.length > 0 && (
-                      <p className="text-green-700 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        {result.succeeded.length} started successfully
-                      </p>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{bundle.label}</p>
+                    {bundle.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{bundle.description}</p>
                     )}
-                    {result.failed.map(f => (
-                      <p key={f.label} className="text-red-600 flex items-center gap-1">
-                        <XCircle className="w-3 h-3" />{f.label}: {f.error}
-                      </p>
+                  </div>
+
+                  <div className="space-y-1 mt-3">
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="w-1 h-1 rounded-full bg-muted-foreground/40" />
+                        {item.label}
+                      </div>
                     ))}
                   </div>
-                )}
-                {err && (
-                  <p className="text-xs text-red-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{err}</p>
-                )}
+
+                  {result && (
+                    <div className="rounded-lg bg-muted/50 px-3 py-2 text-xs space-y-1 mt-3">
+                      {result.succeeded.length > 0 && (
+                        <p className="text-green-700 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {result.succeeded.length} started successfully
+                        </p>
+                      )}
+                      {result.failed.map(f => (
+                        <p key={f.label} className="text-red-600 flex items-center gap-1">
+                          <XCircle className="w-3 h-3" />{f.label}: {f.error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {err && (
+                    <p className="text-xs text-red-600 flex items-center gap-1 mt-3">
+                      <AlertTriangle className="w-3 h-3" />{err}
+                    </p>
+                  )}
+                </div>
 
                 <Button
                   size="sm"
                   onClick={() => handleBundle(bundle.id)}
                   disabled={isLoading || !!loadingBundle}
-                  className="gap-1.5 w-full"
+                  className="gap-1.5 w-full mt-2"
                 >
                   {isLoading
-                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating Bundle…</>
+                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
                     : <><Sparkles className="w-3.5 h-3.5" />Generate {bundle.label}</>
                   }
                 </Button>
@@ -451,10 +476,10 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
 // ─── Jobs tab ─────────────────────────────────────────────────────────────────
 
 function JobsTab({ profileId, initialData }: { profileId: string; initialData: PaginatedJobs }) {
-  const [data, setData]             = useState<PaginatedJobs>(initialData)
+  const [data, setData] = useState<PaginatedJobs>(initialData)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
-  const [jobSearch, setJobSearch]   = useState("")
+  const [jobSearch, setJobSearch] = useState("")
 
   const loadPage = useCallback((page: number) => {
     startTransition(async () => {
@@ -468,7 +493,6 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
 
   const refresh = useCallback(() => loadPage(data.page), [loadPage, data.page])
 
-  // Auto-refresh while any in-progress
   useEffect(() => {
     const hasActive = data.jobs.some(j => !getStatusCfg(j.status).terminal)
     if (!hasActive) return
@@ -476,15 +500,14 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
     return () => clearInterval(id)
   }, [data.jobs, refresh])
 
-  // Client-side filter across current page
   const q = jobSearch.trim().toLowerCase()
   const filteredJobs = q
     ? data.jobs.filter(j =>
-        (j.report_name ?? "").toLowerCase().includes(q) ||
-        j.job_label.toLowerCase().includes(q) ||
-        j.job_type.toLowerCase().includes(q) ||
-        getStatusCfg(j.status).label.toLowerCase().includes(q)
-      )
+      (j.report_name ?? "").toLowerCase().includes(q) ||
+      j.job_label.toLowerCase().includes(q) ||
+      j.job_type.toLowerCase().includes(q) ||
+      getStatusCfg(j.status).label.toLowerCase().includes(q)
+    )
     : data.jobs
 
   const inProgress = data.jobs.filter(j => !getStatusCfg(j.status).terminal).length
@@ -493,9 +516,7 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
-        {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -511,7 +532,6 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
             >×</button>
           )}
         </div>
-
         <div className="flex items-center gap-3 text-xs shrink-0">
           {inProgress > 0 && <span className="text-amber-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{inProgress} in progress</span>}
           {pdfReady   > 0 && <span className="text-green-600 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{pdfReady} PDFs</span>}
@@ -541,7 +561,6 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
           ) : (
             <div className="space-y-2">{filteredJobs.map(j => <JobRow key={j.id} job={j} />)}</div>
           )}
-          {/* Only show pagination when not filtering */}
           {!jobSearch && data.totalPages > 1 && (
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} pageSize={PAGE_SIZE} onPage={loadPage} />
           )}
@@ -571,7 +590,7 @@ export function ReportJobsPanel({
   initialJobs: AnyJob[]
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("catalogue")
-  const [jobsData, setJobsData]   = useState<PaginatedJobs>({
+  const [jobsData, setJobsData] = useState<PaginatedJobs>({
     jobs: initialJobs.slice(0, PAGE_SIZE),
     total: initialJobs.length,
     page: 1,
@@ -590,13 +609,12 @@ export function ReportJobsPanel({
   }
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ElementType; count?: number }> = [
-    { id: "catalogue", label: "Catalogue",    icon: Package  },
-    { id: "jobs",      label: "Jobs",         icon: FileText, count: jobsData.total },
+    { id: "catalogue", label: "Catalogue", icon: Package },
+    { id: "jobs",      label: "Jobs",      icon: FileText, count: jobsData.total },
   ]
 
   return (
     <div className="space-y-5">
-      {/* Tab bar */}
       <div className="flex gap-1 bg-muted/50 p-1 rounded-lg border border-border w-fit">
         {tabs.map(({ id, label, icon: Icon, count }) => (
           <button
