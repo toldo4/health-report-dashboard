@@ -40,7 +40,7 @@ const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
   "bio-chemistry":      `${B2B}/bio-chemistry-job/`,
 }
 
-// ─── Auth & Helpers (Unchanged) ───────────────────────────────────────────────
+// ─── Auth & Helpers ───────────────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
   const res = await fetch(
@@ -181,11 +181,19 @@ export async function generateItem(
   const token = await getAccessToken()
 
   if (item.type === "simple") {
-    await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
+    // 1. Build the base payload
+    const payload: any = {
       profile_id: profileId,
       desired_status: desiredStatus,
-      pdf_config: DEFAULT_PDF_CONFIG // Applied here
-    })
+      pdf_config: DEFAULT_PDF_CONFIG
+    }
+    
+    // 2. Conditionally add the bio_chemistry_report_id if needed
+    if (item.jobType === "bio-chemistry") {
+      payload.bio_chemistry_report_id = item.id // e.g. "methylation", "detox"
+    }
+
+    await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
   } else {
     const res = await fetch(
       `${B2B}/report-summary/?name=${encodeURIComponent(item.searchQuery!)}`,
@@ -199,7 +207,7 @@ export async function generateItem(
       profile_id: profileId,
       report_ids: active.map(s => s.id),
       desired_status: desiredStatus,
-      pdf_config: DEFAULT_PDF_CONFIG // Applied here
+      pdf_config: DEFAULT_PDF_CONFIG
     })
   }
 
@@ -223,17 +231,25 @@ export async function generateBundle(
     bundle.itemIds.map(async (itemId) => {
       const item = CATALOGUE.find(c => c.id === itemId)
       if (!item) return
-      const dedupeKey = item.type === "simple" ? item.jobType! : `report:${item.searchQuery}`
+      
+      // FIX: Use item.id as dedupe key for simple types so multiple bio-chemistry jobs don't skip each other
+      const dedupeKey = item.type === "simple" ? item.id : `report:${item.searchQuery}`
       if (seen.has(dedupeKey)) { succeeded.push(item.label); return }
       seen.add(dedupeKey)
 
       try {
         if (item.type === "simple") {
-          await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, {
+          const payload: any = {
             profile_id: profileId,
             desired_status: desiredStatus,
-            pdf_config: DEFAULT_PDF_CONFIG // Applied here
-          })
+            pdf_config: DEFAULT_PDF_CONFIG
+          }
+
+          if (item.jobType === "bio-chemistry") {
+            payload.bio_chemistry_report_id = item.id
+          }
+
+          await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
         } else {
           const res = await fetch(
             `${B2B}/report-summary/?name=${encodeURIComponent(item.searchQuery!)}`,
@@ -246,7 +262,7 @@ export async function generateBundle(
             profile_id: profileId,
             report_ids: active.map(s => s.id),
             desired_status: desiredStatus,
-            pdf_config: DEFAULT_PDF_CONFIG // Applied here
+            pdf_config: DEFAULT_PDF_CONFIG
           })
         }
         succeeded.push(item.label)
@@ -283,7 +299,7 @@ export async function createBulkReportJobs(
     profile_id: profileId,
     report_ids: reportIds,
     desired_status: desiredStatus,
-    pdf_config: DEFAULT_PDF_CONFIG // Applied here
+    pdf_config: DEFAULT_PDF_CONFIG
   })
   revalidatePath(`/profiles/${profileId}`)
   return result
