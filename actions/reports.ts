@@ -317,10 +317,11 @@ export async function generateBundle(
   return { succeeded, failed }
 }
 
-export async function searchReports(query: string): Promise<ReportSummary[]> {
+export async function searchReports(query: string, listingType?: string): Promise<ReportSummary[]> {
   const token = await getAccessToken()
   const params = new URLSearchParams()
   if (query) params.set("name", query)
+  if (listingType) params.set("listing_type", listingType)
   const res = await fetch(`${B2B}/report-summary/?${params}`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     cache: "no-store",

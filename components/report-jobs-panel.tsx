@@ -5,9 +5,17 @@ import {
   Download, RefreshCw, Search, Plus, CheckCircle2, XCircle,
   Clock, Loader2, ChevronDown, ChevronUp, AlertTriangle,
   ChevronLeft, ChevronRight, Zap, Package, FileText, Sparkles,
+  Filter
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   getAllJobsPaginated,
   generateItem,
@@ -182,6 +190,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
 
   // Custom report search state
   const [searchQuery, setSearchQuery] = useState("")
+  const [listingType, setListingType] = useState<string>("all")
   const [searchResults, setSearchResults] = useState<ReportSummary[]>([])
   const [selectedReports, setSelectedReports] = useState<ReportSummary[]>([])
   const [searching, setSearching] = useState(false)
@@ -198,18 +207,20 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     if (!searchQuery.trim()) { setSearchResults([]); return }
     const id = setTimeout(async () => {
       setSearching(true)
-      try { setSearchResults(await searchReports(searchQuery)) }
+      try { 
+        // Note: You'll need to update the searchReports action to handle listingType
+        setSearchResults(await searchReports(searchQuery, listingType === "all" ? undefined : listingType)) 
+      }
       catch { setSearchResults([]) }
       finally { setSearching(false) }
     }, 400)
     return () => clearTimeout(id)
-  }, [searchQuery])
+  }, [searchQuery, listingType])
 
   async function handleItem(itemId: string) {
     setLoadingItem(itemId)
     setErrors(e => ({ ...e, [itemId]: "" }))
     try {
-      // Only pass the selection value for items that support it; others always use "all"
       const item = CATALOGUE.find(c => c.id === itemId)
       const selection: ReportSelection = item?.showSelection ? (selections[itemId] ?? "all") : "all"
       await generateItem(profileId, itemId, "pdf_generated", selection)
@@ -306,7 +317,6 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Only render the selection dropdown for Health Reports */}
                   {item.showSelection && (
                     <select
                       value={selections[item.id] ?? "all"}
@@ -416,32 +426,51 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
           <span className="text-xs text-muted-foreground">— find any specific report by name</span>
         </div>
         <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search report name…"
-              className="pl-9"
-            />
-            {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search report name…"
+                className="pl-9"
+              />
+              {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
+            </div>
+            
+            {/* Listing Type Select */}
+            <Select value={listingType} onValueChange={setListingType}>
+              <SelectTrigger className="w-full sm:w-[160px] bg-card">
+                <Filter className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="health">Health</SelectItem>
+                <SelectItem value="ancestry">Ancestry</SelectItem>
+                <SelectItem value="traits">Traits</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {searchResults.length > 0 && (
-            <div className="rounded-lg border border-border bg-card max-h-48 overflow-y-auto divide-y divide-border">
+            <div className="rounded-lg border border-border bg-card max-h-48 overflow-y-auto divide-y divide-border shadow-sm">
               {searchResults.map(r => {
                 const isSel = !!selectedReports.find(s => s.id === r.id)
                 return (
                   <button key={r.id} onClick={() => toggleReport(r)}
-                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-muted/50 transition-colors ${isSel ? "bg-blue-50" : ""}`}>
-                    <div className={`w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isSel ? "bg-blue-500 border-blue-500" : "border-border"}`}>
-                      {isSel && <div className="w-2 h-2 rounded-sm bg-white" />}
+                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 hover:bg-muted/50 transition-colors ${isSel ? "bg-blue-50/50" : ""}`}>
+                    <div className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${isSel ? "bg-blue-600 border-blue-600" : "border-muted-foreground/30"}`}>
+                      {isSel && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{r.name}</p>
-                      {r.area?.length > 0 && <p className="text-xs text-muted-foreground truncate">{r.area.join(", ")}</p>}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {r.listing_type && <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 bg-blue-50 px-1 rounded">{r.listing_type}</span>}
+                        {r.area?.length > 0 && <p className="text-xs text-muted-foreground truncate">{r.area.join(", ")}</p>}
+                      </div>
                     </div>
-                    <span className="text-xs text-muted-foreground shrink-0">{r.report_type}</span>
+                    <span className="text-xs text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">{r.report_type}</span>
                   </button>
                 )
               })}
@@ -451,7 +480,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
           {selectedReports.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {selectedReports.map(r => (
-                <span key={r.id} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                <span key={r.id} className="inline-flex items-center gap-1 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full border border-blue-200">
                   {r.name}
                   <button onClick={() => toggleReport(r)} className="hover:text-blue-600 font-bold ml-0.5">×</button>
                 </span>
@@ -460,7 +489,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
           )}
 
           {selectedReports.length > 0 && (
-            <Button size="sm" onClick={handleCustomGenerate} disabled={customLoading} className="gap-2">
+            <Button size="sm" onClick={handleCustomGenerate} disabled={customLoading} className="gap-2 shadow-sm">
               {customLoading
                 ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</>
                 : <><Plus className="w-3.5 h-3.5" />Generate {selectedReports.length} Report{selectedReports.length !== 1 ? "s" : ""}</>
@@ -545,7 +574,7 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
       </div>
 
       {data.jobs.length === 0 ? (
-        <div className="flex flex-col items-center py-10 text-center rounded-xl border border-dashed border-border">
+        <div className="flex flex-col items-center py-10 text-center rounded-xl border border-dashed border-border bg-muted/20">
           <FileText className="w-8 h-8 text-muted-foreground mb-2" />
           <p className="text-sm font-medium">No jobs yet</p>
           <p className="text-xs text-muted-foreground mt-1">Generate reports from the Catalogue tab</p>
@@ -615,40 +644,44 @@ export function ReportJobsPanel({
 
   return (
     <div className="space-y-5">
-      <div className="flex gap-1 bg-muted/50 p-1 rounded-lg border border-border w-fit">
-        {tabs.map(({ id, label, icon: Icon, count }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === id
-                ? "bg-card text-foreground shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-            {typeof count === "number" && count > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                activeTab === id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-              }`}>{count}</span>
-            )}
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg border border-border w-fit">
+          {tabs.map(({ id, label, icon: Icon, count }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === id
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+              {typeof count === "number" && count > 0 && (
+                <span className={`ml-1 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                  activeTab === id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}>{count}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {activeTab === "catalogue" && (
-        <CatalogueTab
-          profileId={profileId}
-          onGenerated={() => {
-            refreshJobs()
-            setActiveTab("jobs")
-          }}
-        />
-      )}
-      {activeTab === "jobs" && (
-        <JobsTab profileId={profileId} initialData={jobsData} />
-      )}
+      <div className="min-h-[400px]">
+        {activeTab === "catalogue" && (
+          <CatalogueTab
+            profileId={profileId}
+            onGenerated={() => {
+              refreshJobs()
+              setActiveTab("jobs")
+            }}
+          />
+        )}
+        {activeTab === "jobs" && (
+          <JobsTab profileId={profileId} initialData={jobsData} />
+        )}
+      </div>
     </div>
   )
 }

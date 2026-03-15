@@ -59,13 +59,11 @@ export default async function ProfileDetailPage({
 }) {
   const { id } = await params
 
-  // 1. Fetch only the profile first (fast)
   const profile = await getProfile(id).catch(() => null)
-
   if (!profile) notFound()
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 max-w-6xl mx-auto">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
@@ -74,7 +72,6 @@ export default async function ProfileDetailPage({
         Back to Profiles
       </Link>
 
-      {/* 2. Wrap the heavy lifting in Suspense to unblock the initial page load */}
       <Suspense fallback={<ProfileSkeleton profile={profile} />}>
         <ProfileData profile={profile} />
       </Suspense>
@@ -95,27 +92,28 @@ function ProfileSkeleton({ profile }: { profile: any }) {
 
   return (
     <>
-      <div className="flex items-start gap-5 mb-8">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
-          style={{ background: "hsl(221 83% 53%)" }}
-        >
-          {getInitials(profile.name)}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold text-foreground">{profile.name}</h1>
-            <div className="h-6 w-24 bg-muted rounded-full animate-pulse" />
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
+        <div className="flex items-start gap-5 min-w-0">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
+            style={{ background: "hsl(221 83% 53%)" }}
+          >
+            {getInitials(profile.name)}
           </div>
-          {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
-          <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-semibold text-foreground">{profile.name}</h1>
+            {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
+            <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
+          </div>
         </div>
-        <EditProfileDialog profile={profile} />
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-24 bg-muted rounded-md animate-pulse" />
+          <EditProfileDialog profile={profile} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1">
-          {/* We already have the profile data, so we can render it immediately! */}
           <SectionCard title="Profile Details">
             <InfoRow icon={User}     label="Biological Sex"      value={profile.sex} />
             <InfoRow icon={Calendar} label="Date of Birth"       value={birthDateStr || profile.birth_year} />
@@ -144,7 +142,6 @@ function ProfileSkeleton({ profile }: { profile: any }) {
 // ─── Heavy Data Component ────────────────────────────────────────────────────
 
 async function ProfileData({ profile }: { profile: any }) {
-  // 3. Fetch all jobs and sub-data concurrently
   const [genomeJobs, reportJobs, kitJobs, orderRows] = await Promise.all([
     getGenomeJobs(profile.id).catch(() => []),
     getAllJobs(profile.id).catch(() => []),
@@ -197,16 +194,23 @@ async function ProfileData({ profile }: { profile: any }) {
 
   return (
     <>
-      <div className="flex items-start gap-5 mb-8">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
-          style={{ background: "hsl(221 83% 53%)" }}
-        >
-          {getInitials(profile.name)}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
+        <div className="flex items-start gap-5 min-w-0">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
+            style={{ background: "hsl(221 83% 53%)" }}
+          >
+            {getInitials(profile.name)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-semibold text-foreground truncate">{profile.name}</h1>
+            {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
+            <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold text-foreground">{profile.name}</h1>
+
+        <div className="flex flex-wrap items-center gap-3 md:justify-end">
+          <div className="flex flex-wrap gap-2">
             {hasProcessedGenome && (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
                 <Dna className="w-3 h-3" /> Genome ready
@@ -223,10 +227,8 @@ async function ProfileData({ profile }: { profile: any }) {
               </span>
             )}
           </div>
-          {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
-          <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
+          <EditProfileDialog profile={profile} />
         </div>
-        <EditProfileDialog profile={profile} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
