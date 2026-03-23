@@ -39,8 +39,9 @@ function ImpactBar({ score }: { score: number }) {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className={`h-2 w-5 rounded-sm ${i < filled ? "bg-violet-500" : "bg-muted"
-            }`}
+          className={`h-2 w-5 rounded-sm ${
+            i < filled ? "bg-violet-500" : "bg-muted"
+          }`}
         />
       ))}
     </div>
@@ -96,22 +97,39 @@ function SNPRow({
       <td className="py-3 px-4">
         <FrequencyBadge pct={freq} />
       </td>
-      <td className="py-3 px-4">
-        <div className="flex flex-wrap gap-1">
-          {snp.alts.slice(0, 4).map((alt, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200 shrink-0"
-            >
-              {alt}
-            </span>
-          ))}
-          {snp.alts.length > 4 && (
-            <span className="inline-flex items-center justify-center h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium shrink-0">
-              +{snp.alts.length - 4}
-            </span>
-          )}
-        </div>
+      <td className="py-3 px-4 max-w-[140px]">
+        {(() => {
+          const isLong = snp.alts.some((a) => a.length > 2)
+          if (isLong) {
+            return (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <span className="font-mono text-xs text-violet-600 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5 truncate max-w-[80px]">
+                  {snp.alts[0]}
+                </span>
+                {snp.alts.length > 1 && (
+                  <span className="text-muted-foreground text-xs shrink-0">+{snp.alts.length - 1} more</span>
+                )}
+              </span>
+            )
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {snp.alts.slice(0, 4).map((alt, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200 shrink-0"
+                >
+                  {alt}
+                </span>
+              ))}
+              {snp.alts.length > 4 && (
+                <span className="inline-flex items-center justify-center h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium shrink-0">
+                  +{snp.alts.length - 4}
+                </span>
+              )}
+            </div>
+          )
+        })()}
       </td>
       <td className="py-3 px-4">
         <ImpactBar score={snp.overall_score} />
