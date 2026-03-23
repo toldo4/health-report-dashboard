@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User, Dna, FlaskConical } from "lucide-react"
+import { ArrowLeft, Calendar, Ruler, Weight, Globe, Mail, User } from "lucide-react"
 import { getProfile } from "@/actions/profile"
 import { getGenomeJobs } from "@/actions/genome"
 import { getAllJobs } from "@/actions/reports"
@@ -51,7 +51,56 @@ function SectionCard({ title, description, children }: {
   )
 }
 
-// ─── Main Page Shell ─────────────────────────────────────────────────────────
+function TabSkeleton() {
+  return <div className="h-64 rounded-xl border border-border bg-card animate-pulse" />
+}
+
+// ─── Per-tab async components ─────────────────────────────────────────────────
+
+async function DnaKitTabContent({ profileId }: { profileId: string }) {
+  const [kitJobs, orderRows] = await Promise.all([
+    getDnaKitJobs(profileId).catch(() => []),
+    getOrderRows().catch(() => []),
+  ])
+  return (
+    <div className="space-y-6">
+      <OrdersPanel profileId={profileId} initialRows={orderRows} />
+      <DnaKitPanel profileId={profileId} initialJobs={kitJobs} />
+    </div>
+  )
+}
+
+async function GenomeTabContent({ profileId }: { profileId: string }) {
+  const genomeJobs = await getGenomeJobs(profileId).catch(() => [])
+  return (
+    <div className="space-y-6">
+      <SectionCard title="Upload Genome File" description="Supports 23andMe, AncestryDNA, and VCF formats">
+        <GenomeUpload profileId={profileId} />
+      </SectionCard>
+      <SectionCard
+        title="Genome Files"
+        description={`${genomeJobs.length} file${genomeJobs.length !== 1 ? "s" : ""} uploaded`}
+      >
+        <GenomeJobsList profileId={profileId} initialJobs={genomeJobs} />
+      </SectionCard>
+    </div>
+  )
+}
+
+async function ReportsTabContent({ profileId }: { profileId: string }) {
+  const reportJobs = await getAllJobs(profileId).catch(() => [])
+  const pdfCount = reportJobs.filter((j: any) => j.pdf_url).length
+  return (
+    <SectionCard
+      title="Report Jobs"
+      description={`${reportJobs.length} job${reportJobs.length !== 1 ? "s" : ""}${pdfCount > 0 ? ` · ${pdfCount} PDFs ready` : ""}`}
+    >
+      <ReportJobsPanel profileId={profileId} initialJobs={reportJobs} />
+    </SectionCard>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default async function ProfileDetailPage({
   params,
@@ -59,9 +108,16 @@ export default async function ProfileDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-
   const profile = await getProfile(id).catch(() => null)
   if (!profile) notFound()
+
+  const birthDateStr = [
+    profile.birth_year,
+    profile.birth_month
+      ? new Date(0, profile.birth_month - 1).toLocaleString("en", { month: "long" })
+      : null,
+    profile.birth_day,
+  ].filter(Boolean).reverse().join(" ")
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -73,132 +129,6 @@ export default async function ProfileDetailPage({
         Back to Profiles
       </Link>
 
-      <Suspense fallback={<ProfileSkeleton profile={profile} />}>
-        <ProfileData profile={profile} />
-      </Suspense>
-    </div>
-  )
-}
-
-// ─── Loading Skeleton ────────────────────────────────────────────────────────
-
-function ProfileSkeleton({ profile }: { profile: any }) {
-  const birthDateStr = [
-    profile.birth_year,
-    profile.birth_month
-      ? new Date(0, profile.birth_month - 1).toLocaleString("en", { month: "long" })
-      : null,
-    profile.birth_day,
-  ].filter(Boolean).reverse().join(" ")
-
-  return (
-    <>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
-        <div className="flex items-start gap-5 min-w-0">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-semibold text-white shrink-0"
-            style={{ background: "hsl(221 83% 53%)" }}
-          >
-            {getInitials(profile.name)}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-semibold text-foreground">{profile.name}</h1>
-            {profile.email && <p className="text-sm text-muted-foreground mt-0.5">{profile.email}</p>}
-            <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-24 bg-muted rounded-md animate-pulse" />
-          <EditProfileDialog profile={profile} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <SectionCard title="Profile Details">
-            <InfoRow icon={User}     label="Biological Sex"      value={profile.sex} />
-            <InfoRow icon={Calendar} label="Date of Birth"       value={birthDateStr || profile.birth_year} />
-            <InfoRow icon={Ruler}    label="Height"              value={profile.height ? `${profile.height} cm` : null} />
-            <InfoRow icon={Weight}   label="Weight"              value={profile.weight ? `${profile.weight} kg` : null} />
-            <InfoRow icon={Mail}     label="Email"               value={profile.email} />
-            <InfoRow icon={Globe}    label="Primary Ethnicity"   value={profile.ethnicity} />
-            <InfoRow icon={Globe}    label="Secondary Ethnicity" value={profile.secondary_ethnicity} />
-          </SectionCard>
-        </div>
-
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex gap-2 mb-4">
-            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
-            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
-            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
-            <div className="w-24 h-9 bg-muted rounded-md animate-pulse" />
-          </div>
-          <div className="h-[400px] bg-card border border-border rounded-xl animate-pulse" />
-        </div>
-      </div>
-    </>
-  )
-}
-
-// ─── Heavy Data Component ────────────────────────────────────────────────────
-
-async function ProfileData({ profile }: { profile: any }) {
-  const [genomeJobs, reportJobs, kitJobs, orderRows] = await Promise.all([
-    getGenomeJobs(profile.id).catch(() => []),
-    getAllJobs(profile.id).catch(() => []),
-    getDnaKitJobs(profile.id).catch(() => []),
-    getOrderRows().catch(() => []),
-  ])
-
-  const hasProcessedGenome = genomeJobs.some((j: any) => j.status === "file_processed")
-  const pdfCount           = reportJobs.filter((j: any) => j.pdf_url).length
-  const completedKits      = kitJobs.filter((j: any) => j.status === "completed").length
-
-  const birthDateStr = [
-    profile.birth_year,
-    profile.birth_month
-      ? new Date(0, profile.birth_month - 1).toLocaleString("en", { month: "long" })
-      : null,
-    profile.birth_day,
-  ].filter(Boolean).reverse().join(" ")
-
-  const genomeContent = (
-    <div className="space-y-6">
-      <SectionCard title="Upload Genome File" description="Supports 23andMe, AncestryDNA, and VCF formats">
-        <GenomeUpload profileId={profile.id} />
-      </SectionCard>
-      <SectionCard
-        title="Genome Files"
-        description={`${genomeJobs.length} file${genomeJobs.length !== 1 ? "s" : ""} uploaded`}
-      >
-        <GenomeJobsList profileId={profile.id} initialJobs={genomeJobs} />
-      </SectionCard>
-    </div>
-  )
-
-  const reportsContent = (
-    <SectionCard
-      title="Report Jobs"
-      description={`${reportJobs.length} job${reportJobs.length !== 1 ? "s" : ""}${pdfCount > 0 ? ` · ${pdfCount} PDFs ready` : ""}`}
-    >
-      <ReportJobsPanel profileId={profile.id} initialJobs={reportJobs} />
-    </SectionCard>
-  )
-
-  const kitContent = (
-    <DnaKitPanel profileId={profile.id} initialJobs={kitJobs} />
-  )
-
-  const ordersContent = (
-    <OrdersPanel profileId={profile.id} initialRows={orderRows} />
-  )
-
-  const genesContent = (
-  <GeneDetailPanel profileId={profile.id} ethnicity={profile.ethnicity} />
-)
-
-  return (
-    <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
         <div className="flex items-start gap-5 min-w-0">
           <div
@@ -213,27 +143,7 @@ async function ProfileData({ profile }: { profile: any }) {
             <p className="text-xs text-muted-foreground font-mono mt-1">{profile.id}</p>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3 md:justify-end">
-          <div className="flex flex-wrap gap-2">
-            {hasProcessedGenome && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                <Dna className="w-3 h-3" /> Genome ready
-              </span>
-            )}
-            {pdfCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                {pdfCount} PDF{pdfCount > 1 ? "s" : ""} ready
-              </span>
-            )}
-            {completedKits > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
-                <FlaskConical className="w-3 h-3" /> {completedKits} kit{completedKits > 1 ? "s" : ""} complete
-              </span>
-            )}
-          </div>
-          <EditProfileDialog profile={profile} />
-        </div>
+        <EditProfileDialog profile={profile} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -251,18 +161,25 @@ async function ProfileData({ profile }: { profile: any }) {
 
         <div className="lg:col-span-2">
           <ProfileTabs
-            genomeCount={genomeJobs.length}
-            reportCount={reportJobs.length}
-            kitCount={kitJobs.length}
-            orderCount={orderRows.length}
-            genomeContent={genomeContent}
-            reportsContent={reportsContent}
-            kitContent={kitContent}
-            ordersContent={ordersContent}
-            genesContent={genesContent}
+            kitContent={
+              <Suspense fallback={<TabSkeleton />}>
+                <DnaKitTabContent profileId={profile.id} />
+              </Suspense>
+            }
+            genomeContent={
+              <Suspense fallback={<TabSkeleton />}>
+                <GenomeTabContent profileId={profile.id} />
+              </Suspense>
+            }
+            reportsContent={
+              <Suspense fallback={<TabSkeleton />}>
+                <ReportsTabContent profileId={profile.id} />
+              </Suspense>
+            }
+            genesContent={<GeneDetailPanel profileId={profile.id} ethnicity={profile.ethnicity} />}
           />
         </div>
       </div>
-    </>
+    </div>
   )
 }
