@@ -5,24 +5,20 @@ import { CreateProfileDialog } from "@/components/create-profile-dialog"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { DeleteProfileButton } from "@/components/delete-profile-button"
 import { BookOpen } from "lucide-react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+
+function getInitials(name: string) {
+  return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+}
 
 export default async function DashboardPage() {
   const profiles = await getProfiles()
 
   return (
-    <main className="container mx-auto py-10 px-4">
-      <div className="flex justify-between items-center mb-8">
+    <main className="p-8 max-w-6xl mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Nutrigenix Profiles</h1>
-          <p className="text-muted-foreground mt-2">Manage user profiles and genome files.</p>
+          <h1 className="text-2xl font-semibold text-foreground">Nutrigenix Profiles</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage user profiles and genome files.</p>
         </div>
         <div className="flex items-center gap-3">
           <Link
@@ -36,47 +32,46 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Sex</TableHead>
-              <TableHead>Birth Year</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {profiles.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">
-                  No profiles found. Create one to get started.
-                </TableCell>
-              </TableRow>
-            ) : (
-              profiles.map((profile: any) => (
-                <TableRow key={profile.id}>
-                  <TableCell className="font-medium">
-                    <Link
-                      href={`/profiles/${profile.id}`}
-                      className="hover:underline text-primary"
-                    >
-                      {profile.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{profile.email || "—"}</TableCell>
-                  <TableCell>{profile.sex}</TableCell>
-                  <TableCell>{profile.birth_year}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <EditProfileDialog profile={profile} />
-                    <DeleteProfileButton id={profile.id} />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">
+            {profiles.length} profile{profiles.length !== 1 ? "s" : ""}
+          </h2>
+        </div>
+
+        {profiles.length === 0 ? (
+          <div className="p-5 text-center text-sm text-muted-foreground h-24 flex items-center justify-center">
+            No profiles found. Create one to get started.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {profiles.map((profile: any) => (
+              <div key={profile.id} className="flex items-center gap-4 px-5 py-4">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-semibold text-white shrink-0"
+                  style={{ background: "hsl(221 83% 53%)" }}
+                >
+                  {getInitials(profile.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <Link
+                    href={`/profiles/${profile.id}`}
+                    className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate block"
+                  >
+                    {profile.name}
+                  </Link>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {[profile.email, profile.sex, profile.birth_year].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <EditProfileDialog profile={profile} />
+                  <DeleteProfileButton id={profile.id} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   )
