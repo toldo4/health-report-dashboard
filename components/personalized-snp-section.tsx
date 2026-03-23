@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { User, ChevronDown, Loader2, Dna, AlertCircle } from "lucide-react"
+import { User, ChevronDown, Loader2, Dna, AlertCircle, ArrowLeft } from "lucide-react"
 import { getProfiles } from "@/actions/profile"
 import { getSNPsByRsids, getGenotypes, type SNPSummary, type SNPGenotype } from "@/actions/gene"
 import { computePersonalizedFrequency, getEthnicityKey } from "@/lib/gene-utils"
+import { SNPDetailPanel } from "@/components/snp-detail-panel"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -33,10 +34,12 @@ function PersonalizedSNPTable({
   snps,
   genotypes,
   ethnicity,
+  onSelectSNP,
 }: {
   snps: SNPSummary[]
   genotypes: SNPGenotype[]
   ethnicity?: string | null
+  onSelectSNP: (rsid: string) => void
 }) {
   const genotypeMap = new Map(genotypes.map((g) => [g.rsid, g]))
   const ethnicityKey = getEthnicityKey(ethnicity)
@@ -68,14 +71,12 @@ function PersonalizedSNPTable({
             return (
               <tr key={snp.rsid} className="border-b border-violet-100 hover:bg-violet-50/50 transition-colors">
                 <td className="py-3 px-4">
-                  <a
-                    href={`https://selfdecode.com/snp/${snp.rsid}/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary text-sm font-medium hover:underline"
+                  <button
+                    onClick={() => onSelectSNP(snp.rsid)}
+                    className="text-primary text-sm font-medium hover:underline text-left"
                   >
                     {snp.rsid}
-                  </a>
+                  </button>
                 </td>
                 <td className="py-3 px-4 text-sm font-mono text-foreground">{genotypeStr}</td>
                 <td className="py-3 px-4 text-sm text-foreground">{freqStr}</td>
@@ -176,6 +177,7 @@ export function PersonalizedSNPSection({ rsids }: PersonalizedSNPSectionProps) {
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [selectedSnpRsid, setSelectedSnpRsid] = useState<string | null>(null)
   // Load profiles on mount
   useEffect(() => {
     getProfiles()
@@ -216,6 +218,20 @@ export function PersonalizedSNPSection({ rsids }: PersonalizedSNPSectionProps) {
       }
     })
   }, [selectedProfile?.id])
+
+  // ── SNP detail overlay ────────────────────────────────────────────────────────
+  if (selectedSnpRsid) {
+    return (
+      <div className="rounded-xl border border-violet-200 bg-violet-50/10 overflow-hidden my-6 p-4">
+        <SNPDetailPanel
+          rsid={selectedSnpRsid}
+          profileId={selectedProfile?.id ?? ""}
+          ethnicity={selectedProfile?.ethnicity}
+          onBack={() => setSelectedSnpRsid(null)}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50/30 overflow-hidden my-6">
@@ -284,6 +300,7 @@ export function PersonalizedSNPSection({ rsids }: PersonalizedSNPSectionProps) {
             snps={snps}
             genotypes={genotypes}
             ethnicity={selectedProfile.ethnicity}
+            onSelectSNP={setSelectedSnpRsid}
           />
         )}
 
