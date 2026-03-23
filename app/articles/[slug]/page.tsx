@@ -30,10 +30,9 @@ function HtmlContent({ html, className }: { html: string; className?: string }) 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default async function ArticleDetailPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>
-}) {
+  params }: {
+    params: Promise<{ slug: string }>
+  }) {
   const { slug } = await params
 
   const article = await getArticle(slug).catch(() => null)
@@ -121,10 +120,7 @@ export default async function ArticleDetailPage({
                   <h2 className="text-xl font-bold text-foreground mb-4">{section.title}</h2>
                   <HtmlContent html={cleanText} />
                   {section.snps && section.snps.length > 0 && (
-                    <PersonalizedSNPSection
-                      rsids={section.snps}
-                      genes={article.genes.filter(Boolean) as string[]}
-                    />
+                    <PersonalizedSNPSection rsids={section.snps} />
                   )}
                 </div>
               )

@@ -198,6 +198,47 @@ export interface SNPDetail {
 
 // ─── SNP Detail API call ──────────────────────────────────────────────────────
 
+/**
+ * Fetch SNP summaries for a list of rsids directly — no gene_slug needed.
+ * Uses /open-target-snp/ which supports comma-separated rsids.
+ * Maps the response to SNPSummary shape for compatibility.
+ */
+export async function getSNPsByRsids(rsids: string[]): Promise<SNPSummary[]> {
+  if (rsids.length === 0) return []
+  const token = await getAccessToken()
+
+  // API supports max 75 rsIDs at a time
+  const chunks: string[][] = []
+  for (let i = 0; i < rsids.length; i += 75) {
+    chunks.push(rsids.slice(i, i + 75))
+  }
+
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const res = await fetch(
+        `${B2B}/open-target-snp/?rsid=${chunk.join(",")}`,
+        {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          cache: "no-store",
+        }
+      )
+      if (!res.ok) return []
+      const data: SNPDetail[] = await res.json()
+      // Map SNPDetail → SNPSummary shape
+      return data.map((snp): SNPSummary => ({
+        rsid: snp.rsid,
+        alts: snp.alts,
+        variant_ids: snp.variant_ids,
+        frequency_tables: snp.frequency_tables,
+        overall_score: snp.genes?.[0]?.overall_score ?? 0,
+        gene_slug: snp.genes?.[0]?.slug ?? "",
+      }))
+    })
+  )
+
+  return results.flat()
+}
+
 export async function getSNPDetail(rsid: string): Promise<SNPDetail | null> {
   const token = await getAccessToken()
   const res = await fetch(

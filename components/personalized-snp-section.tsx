@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react"
 import { User, ChevronDown, Loader2, Dna, AlertCircle } from "lucide-react"
 import { getProfiles } from "@/actions/profile"
-import { getGeneSNPs, getGenotypes, type SNPSummary, type SNPGenotype } from "@/actions/gene"
+import { getSNPsByRsids, getGenotypes, type SNPSummary, type SNPGenotype } from "@/actions/gene"
 import { computePersonalizedFrequency, getEthnicityKey } from "@/lib/gene-utils"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -166,10 +166,9 @@ function ProfileSelector({
 
 interface PersonalizedSNPSectionProps {
   rsids: string[]
-  genes: string[]
 }
 
-export function PersonalizedSNPSection({ rsids, genes }: PersonalizedSNPSectionProps) {
+export function PersonalizedSNPSection({ rsids }: PersonalizedSNPSectionProps) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
   const [snps, setSnps] = useState<SNPSummary[]>([])
@@ -177,11 +176,6 @@ export function PersonalizedSNPSection({ rsids, genes }: PersonalizedSNPSectionP
   const [profilesLoading, setProfilesLoading] = useState(true)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [snpLoadFailed, setSnpLoadFailed] = useState(false)
-
-  // Don't render at all if there are no valid genes
-  const validGenes = genes.filter((g): g is string => !!g && g.trim().length > 0)
-
   // Load profiles on mount
   useEffect(() => {
     getProfiles()
@@ -190,37 +184,22 @@ export function PersonalizedSNPSection({ rsids, genes }: PersonalizedSNPSectionP
       .finally(() => setProfilesLoading(false))
   }, [])
 
-  // Load SNP summaries once (not profile-dependent)
+  // Load SNP summaries once — fetch directly by rsid, no gene slug needed
   useEffect(() => {
     if (rsids.length === 0) return
-    if (validGenes.length === 0) return
-
     startTransition(async () => {
       try {
-        const allSnps: SNPSummary[] = []
-        await Promise.all(
-          validGenes.map(async (gene) => {
-            // Use rsid filter param to fetch only the SNPs we need — avoids 400 on bad gene slugs
-            const page = await getGeneSNPs(gene, 1, 75).catch(() => null)
-            if (!page) return
-            const filtered = page.results.filter((s) => rsids.includes(s.rsid))
-            allSnps.push(...filtered)
-          })
-        )
-        // If no SNPs found via gene lookup, silently skip (SNPs may not be indexed under this gene)
-        if (allSnps.length === 0) return
+        const allSnps = await getSNPsByRsids(rsids)
         // Preserve the order from rsids
         const ordered = rsids
           .map((id) => allSnps.find((s) => s.rsid === id))
           .filter(Boolean) as SNPSummary[]
         setSnps(ordered)
       } catch {
-        // Don't surface errors for SNP lookup failures — just hide the table
         setSnps([])
-        setSnpLoadFailed(true)
       }
     })
-  }, [rsids.join(","), genes.join(",")])
+  }, [rsids.join(",")])
 
   // Load genotypes when profile changes
   useEffect(() => {
@@ -237,9 +216,6 @@ export function PersonalizedSNPSection({ rsids, genes }: PersonalizedSNPSectionP
       }
     })
   }, [selectedProfile?.id])
-
-  // Don't render if no valid genes or SNP lookup completely failed with no data
-  if (validGenes.length === 0) return null
 
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50/30 overflow-hidden my-6">
