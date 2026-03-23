@@ -27,12 +27,12 @@ export function ProfileTabs({
   ordersContent,
   genesContent,
 }: ProfileTabsProps) {
-  const [active, setActive] = useState<TabId>("genome")
+  const [active, setActive] = useState<TabId>("dna-kit")
 
   const tabs: Array<{ id: TabId; label: string; icon: React.ElementType; count?: number }> = [
+    { id: "dna-kit",  label: "DNA Kits", icon: FlaskConical, count: kitCount     },
     { id: "genome",   label: "Genome",   icon: Dna,          count: genomeCount  },
     { id: "reports",  label: "Reports",  icon: FileText,     count: reportCount  },
-    { id: "dna-kit",  label: "DNA Kits", icon: FlaskConical, count: kitCount     },
     { id: "genes",    label: "Genes",    icon: Microscope                        },
   ]
 
