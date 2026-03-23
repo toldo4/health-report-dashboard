@@ -14,6 +14,7 @@ import { ReportJobsPanel } from "@/components/report-jobs-panel"
 import { DnaKitPanel } from "@/components/dna-kit-panel"
 import { OrdersPanel } from "@/components/orders-panel"
 import { ProfileTabs } from "@/components/profile-tabs"
+import { GeneDetailPanel } from "@/components/gene-detail-panel"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,10 @@ async function ProfileData({ profile }: { profile: any }) {
     <OrdersPanel profileId={profile.id} initialRows={orderRows} />
   )
 
+  const genesContent = (
+  <GeneDetailPanel profileId={profile.id} ethnicity={profile.ethnicity} />
+)
+
   return (
     <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 mb-8">
@@ -254,6 +259,7 @@ async function ProfileData({ profile }: { profile: any }) {
             reportsContent={reportsContent}
             kitContent={kitContent}
             ordersContent={ordersContent}
+            genesContent={genesContent}
           />
         </div>
       </div>

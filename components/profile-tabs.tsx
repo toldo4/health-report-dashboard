@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Dna, FileText, FlaskConical, ShoppingBag } from "lucide-react"
+import { Dna, FileText, FlaskConical, ShoppingBag, Microscope } from "lucide-react"
 
 interface ProfileTabsProps {
   genomeCount:    number
@@ -12,9 +12,10 @@ interface ProfileTabsProps {
   reportsContent: React.ReactNode
   kitContent:     React.ReactNode
   ordersContent:  React.ReactNode
+  genesContent:   React.ReactNode
 }
 
-type TabId = "genome" | "reports" | "dna-kit" | "orders"
+type TabId = "genome" | "reports" | "dna-kit" | "orders" | "genes"
 
 export function ProfileTabs({
   genomeCount,
@@ -25,14 +26,16 @@ export function ProfileTabs({
   reportsContent,
   kitContent,
   ordersContent,
+  genesContent,
 }: ProfileTabsProps) {
   const [active, setActive] = useState<TabId>("genome")
 
-  const tabs: Array<{ id: TabId; label: string; icon: React.ElementType; count: number }> = [
+  const tabs: Array<{ id: TabId; label: string; icon: React.ElementType; count?: number }> = [
     { id: "genome",   label: "Genome",   icon: Dna,          count: genomeCount  },
     { id: "reports",  label: "Reports",  icon: FileText,     count: reportCount  },
     { id: "dna-kit",  label: "DNA Kits", icon: FlaskConical, count: kitCount     },
     { id: "orders",   label: "Orders",   icon: ShoppingBag,  count: orderCount   },
+    { id: "genes",    label: "Genes",    icon: Microscope                        },
   ]
 
   return (
@@ -52,7 +55,7 @@ export function ProfileTabs({
           >
             <Icon className="w-4 h-4" />
             {label}
-            {count > 0 && (
+            {count !== undefined && count > 0 && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
                 active === id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
               }`}>
@@ -67,6 +70,7 @@ export function ProfileTabs({
       {active === "reports" && reportsContent}
       {active === "dna-kit" && kitContent}
       {active === "orders"  && ordersContent}
+      {active === "genes"   && genesContent}
     </div>
   )
 }
