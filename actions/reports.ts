@@ -8,6 +8,8 @@ import {
   type AnyJob,
   type PaginatedJobs,
   type ReportSummary,
+  type ReportType,
+  guessCatalogueItemId,
 } from "@/lib/reports-catalogue"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
@@ -41,26 +43,7 @@ const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
 
 export type ReportSelection = "all" | "summary_only" | "report_only"
 
-// Helper to determine if a report is a summary or an overview.
-function isSummaryReport(s: ReportSummary & { listing_type?: string }) {
-  const name = s.name.toLowerCase()
-  return (
-    s.listing_type === "category" ||
-    name.includes("summary") ||
-    name.includes("overview")
-  )
-}
-
-// ─── Build the correct /report-summary/ URL based on filterBy ────────────────
-
-function buildReportSummaryUrl(searchQuery: string, filterBy: "name" | "listing_type" = "name"): string {
-  if (filterBy === "listing_type") {
-    return `${B2B}/report-summary/?listing_type=${encodeURIComponent(searchQuery)}`
-  }
-  return `${B2B}/report-summary/?name=${encodeURIComponent(searchQuery)}`
-}
-
-// ─── Auth & Helpers ───────────────────────────────────────────────
+// ─── Auth & Helpers ───────────────────────────────────────────────────────────
 
 async function getAccessToken(): Promise<string> {
   const res = await fetch(
@@ -95,33 +78,90 @@ async function apiPost(url: string, token: string, body: object): Promise<any> {
   return res.json()
 }
 
-async function buildNameMap(token: string): Promise<Map<string, string>> {
+/**
+ * Fetches the full /report-summary/ list (cached for 5 min) and returns it.
+ * All report_type-based filtering happens in-memory from this single list.
+ */
+async function fetchAllReportSummaries(token: string): Promise<ReportSummary[]> {
+  const res = await fetch(`${B2B}/report-summary/`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    next: { revalidate: 300 },
+  })
+  if (!res.ok) return []
+  return res.json()
+}
+
+/**
+ * Builds a Map<reportId, ReportSummary> for quick lookup by id.
+ */
+async function buildSummaryMap(token: string): Promise<Map<string, ReportSummary>> {
   try {
-    const res = await fetch(`${B2B}/report-summary/`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      next: { revalidate: 300 },
-    })
-    if (!res.ok) return new Map()
-    const list: ReportSummary[] = await res.json()
-    return new Map(list.map(s => [s.id, s.name]))
+    const list = await fetchAllReportSummaries(token)
+    return new Map(list.map(s => [s.id, s]))
   } catch {
     return new Map()
   }
 }
 
-function normalize(raw: any, jobType: string, jobLabel: string, nameMap?: Map<string, string>): AnyJob {
+/**
+ * Filters the full summary list for a catalogue item based on its
+ * reportTypes + listingType fields, then applies the optional selection
+ * (summary_only / report_only) for items that support it.
+ *
+ * "Summary" reports = aggregate or combined report_types.
+ * "Individual" reports = standard, trait, or gene report_types.
+ */
+function filterSummaries(
+  all: ReportSummary[],
+  reportTypes: ReportType[],
+  listingType: string | undefined,
+  selection: ReportSelection,
+  showSelection: boolean,
+): ReportSummary[] {
+  let results = all.filter(s => {
+    if (s.is_deprecated) return false
+    if (!reportTypes.includes(s.report_type as ReportType)) return false
+    if (listingType && s.listing_type !== listingType) return false
+    return true
+  })
+
+  if (showSelection) {
+    if (selection === "summary_only") {
+      results = results.filter(s =>
+        s.report_type === "aggregate" || s.report_type === "combined"
+      )
+    } else if (selection === "report_only") {
+      results = results.filter(s =>
+        s.report_type !== "aggregate" && s.report_type !== "combined"
+      )
+    }
+  }
+
+  return results
+}
+
+function normalize(
+  raw: any,
+  jobType: string,
+  jobLabel: string,
+  summaryMap?: Map<string, ReportSummary>,
+): AnyJob {
   let label = jobLabel
   if (raw.ancestry_type === "mtdna") label = "mtDNA Ancestry"
   else if (raw.ancestry_type === "ancestry") label = "Ancestry"
+
+  const summary = raw.report_id ? summaryMap?.get(raw.report_id) : undefined
+
   return {
     id: raw.id,
     status: raw.status ?? "unknown",
     desired_status: raw.desired_status,
     profile_id: raw.profile_id,
     report_id: raw.report_id,
-    report_name: raw.report_id && nameMap ? (nameMap.get(raw.report_id) ?? undefined) : undefined,
+    report_name: summary?.name,
     job_type: jobType,
     job_label: label,
+    catalogue_item_id: guessCatalogueItemId(jobType, summary?.report_type, summary?.listing_type),
     pdf_url: raw.pdf_url ?? null,
     error: raw.error,
     handling_failed: raw.handling_failed,
@@ -136,7 +176,7 @@ async function listJobs(
   token: string,
   jobType: string,
   label: string,
-  nameMap?: Map<string, string>
+  summaryMap?: Map<string, ReportSummary>,
 ): Promise<AnyJob[]> {
   try {
     const res = await fetch(`${endpoint}?profile_id=${profileId}`, {
@@ -146,20 +186,20 @@ async function listJobs(
     if (!res.ok) return []
     const data = await res.json()
     const arr = Array.isArray(data) ? data : (data.results ?? [])
-    return arr.map((j: any) => normalize(j, jobType, label, nameMap))
+    return arr.map((j: any) => normalize(j, jobType, label, summaryMap))
   } catch {
     return []
   }
 }
 
-// ─── Fetch all jobs ───────────────────────────────────────────────
+// ─── Fetch all jobs ───────────────────────────────────────────────────────────
 
 export async function getAllJobs(profileId: string): Promise<AnyJob[]> {
   const token = await getAccessToken()
-  const nameMap = await buildNameMap(token)
+  const summaryMap = await buildSummaryMap(token)
 
   const results = await Promise.all([
-    listJobs(`${B2B}/report-job/`,                    profileId, token, "report-job",        "Report",                         nameMap),
+    listJobs(`${B2B}/report-job/`,                    profileId, token, "report-job",        "Report",                          summaryMap),
     listJobs(SIMPLE_ENDPOINTS["health-overview"],     profileId, token, "health-overview",   "Health Overview Report"),
     listJobs(SIMPLE_ENDPOINTS["clinical-overview"],   profileId, token, "clinical-overview", "Medical Overview Report"),
     listJobs(SIMPLE_ENDPOINTS["longevity-screener"],  profileId, token, "longevity-screener","Longevity Screener"),
@@ -177,7 +217,7 @@ export async function getAllJobs(profileId: string): Promise<AnyJob[]> {
 export async function getAllJobsPaginated(
   profileId: string,
   page = 1,
-  pageSize = 15
+  pageSize = 15,
 ): Promise<PaginatedJobs> {
   const all = await getAllJobs(profileId)
   const total = all.length
@@ -198,7 +238,7 @@ export async function generateItem(
   profileId: string,
   itemId: string,
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
-  selection: ReportSelection = "all"
+  selection: ReportSelection = "all",
 ): Promise<void> {
   const item = CATALOGUE.find(c => c.id === itemId)
   if (!item) throw new Error(`Unknown catalogue item: ${itemId}`)
@@ -210,43 +250,26 @@ export async function generateItem(
       desired_status: desiredStatus,
       pdf_config: DEFAULT_PDF_CONFIG,
     }
-
-    if (item.jobType === "bio-chemistry") {
-      payload.bio_chemistry_report_id = item.id
-    }
-
-    if (item.ancestryType) {
-      payload.ancestry_type = item.ancestryType
-    }
-
+    if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
+    if (item.ancestryType) payload.ancestry_type = item.ancestryType
     await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
   } else {
-    // FIX: use filterBy to build the correct query parameter
-    const url = buildReportSummaryUrl(item.searchQuery!, item.filterBy)
-
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      cache: "no-store",
-    })
-    if (!res.ok) throw new Error(`Failed to search reports: ${res.status}`)
-    const summaries: ReportSummary[] = await res.json()
-
-    let active = summaries.filter(s => !s.is_deprecated)
-
-    // Only apply selection filter for items that support it (e.g. Health Reports).
-    // Functional and Medical always show all reports.
-    if (item.showSelection) {
-      if (selection === "summary_only") {
-        active = active.filter(isSummaryReport)
-      } else if (selection === "report_only") {
-        active = active.filter(s => !isSummaryReport(s))
-      }
-    }
-
+    // type === "report": filter in-memory by report_type + listingType
+    const all = await fetchAllReportSummaries(token)
+    const active = filterSummaries(
+      all,
+      item.reportTypes!,
+      item.listingType,
+      selection,
+      item.showSelection ?? false,
+    )
     if (!active.length) {
-      throw new Error(`No reports found for "${item.searchQuery}" with selection "${selection}"`)
+      throw new Error(
+        `No reports found for "${item.label}" (types: ${item.reportTypes?.join(", ")})` +
+        (item.listingType ? ` listing: ${item.listingType}` : "") +
+        ` selection: ${selection}`
+      )
     }
-
     await apiPost(`${B2B}/report-job/bulk-create/`, token, {
       profile_id: profileId,
       report_ids: active.map(s => s.id),
@@ -261,11 +284,14 @@ export async function generateItem(
 export async function generateBundle(
   profileId: string,
   bundleId: string,
-  desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated"
+  desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
 ): Promise<{ succeeded: string[]; failed: Array<{ label: string; error: string }> }> {
   const bundle = BUNDLES.find(b => b.id === bundleId)
   if (!bundle) throw new Error(`Unknown bundle: ${bundleId}`)
   const token = await getAccessToken()
+
+  // Fetch summaries once for all report-type items in this bundle
+  const allSummaries = await fetchAllReportSummaries(token)
 
   const seen = new Set<string>()
   const succeeded: string[] = []
@@ -276,7 +302,11 @@ export async function generateBundle(
       const item = CATALOGUE.find(c => c.id === itemId)
       if (!item) return
 
-      const dedupeKey = item.type === "simple" ? item.id : `report:${item.searchQuery}`
+      // Dedupe key: for report items, use type+listingType to avoid duplicate bulk calls
+      const dedupeKey = item.type === "simple"
+        ? item.id
+        : `report:${item.reportTypes?.join(",")}:${item.listingType ?? ""}`
+
       if (seen.has(dedupeKey)) { succeeded.push(item.label); return }
       seen.add(dedupeKey)
 
@@ -287,29 +317,18 @@ export async function generateBundle(
             desired_status: desiredStatus,
             pdf_config: DEFAULT_PDF_CONFIG,
           }
-
-          if (item.jobType === "bio-chemistry") {
-            payload.bio_chemistry_report_id = item.id
-          }
-
-          if (item.ancestryType) {
-            payload.ancestry_type = item.ancestryType
-          }
-
+          if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
+          if (item.ancestryType) payload.ancestry_type = item.ancestryType
           await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
         } else {
-          // FIX: use filterBy here too (bundle generation path)
-          const url = buildReportSummaryUrl(item.searchQuery!, item.filterBy)
-
-          const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-            cache: "no-store",
-          })
-          const summaries: ReportSummary[] = res.ok ? await res.json() : []
-          const active = summaries.filter(s => !s.is_deprecated)
-
+          const active = filterSummaries(
+            allSummaries,
+            item.reportTypes!,
+            item.listingType,
+            "all",   // bundles always generate all reports
+            false,
+          )
           if (!active.length) throw new Error("No reports found for bundle generation")
-
           await apiPost(`${B2B}/report-job/bulk-create/`, token, {
             profile_id: profileId,
             report_ids: active.map(s => s.id),
@@ -328,24 +347,22 @@ export async function generateBundle(
   return { succeeded, failed }
 }
 
-export async function searchReports(query: string, listingType?: string): Promise<ReportSummary[]> {
+export async function searchReports(query: string, reportType?: string): Promise<ReportSummary[]> {
   const token = await getAccessToken()
-  const params = new URLSearchParams()
-  if (query) params.set("name", query)
-  if (listingType) params.set("listing_type", listingType)
-  const res = await fetch(`${B2B}/report-summary/?${params}`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    cache: "no-store",
+  const all = await fetchAllReportSummaries(token)
+  const q = query.trim().toLowerCase()
+  return all.filter(r => {
+    if (r.is_deprecated) return false
+    if (q && !r.name.toLowerCase().includes(q)) return false
+    if (reportType && r.report_type !== reportType) return false
+    return true
   })
-  if (!res.ok) throw new Error(`Failed to search reports: ${res.status}`)
-  const all: ReportSummary[] = await res.json()
-  return all.filter(r => !r.is_deprecated)
 }
 
 export async function createBulkReportJobs(
   profileId: string,
   reportIds: string[],
-  desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated"
+  desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
 ) {
   const token = await getAccessToken()
   const result = await apiPost(`${B2B}/report-job/bulk-create/`, token, {

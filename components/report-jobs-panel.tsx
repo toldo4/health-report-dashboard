@@ -27,9 +27,11 @@ import {
 import {
   CATALOGUE,
   BUNDLES,
+  getCatalogueIdsForBundle,
   type AnyJob,
   type PaginatedJobs,
   type ReportSummary,
+  type ReportType,
 } from "@/lib/reports-catalogue"
 
 const PAGE_SIZE = 15
@@ -208,8 +210,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     const id = setTimeout(async () => {
       setSearching(true)
       try { 
-        // Note: You'll need to update the searchReports action to handle listingType
-        setSearchResults(await searchReports(searchQuery, listingType === "all" ? undefined : listingType)) 
+        setSearchResults(await searchReports(searchQuery, listingType === "all" ? undefined : listingType as ReportType)) 
       }
       catch { setSearchResults([]) }
       finally { setSearching(false) }
@@ -438,17 +439,20 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
               {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
             </div>
             
-            {/* Listing Type Select */}
+            {/* Report type filter */}
             <Select value={listingType} onValueChange={setListingType}>
-              <SelectTrigger className="w-full sm:w-[160px] bg-card">
+              <SelectTrigger className="w-full sm:w-[180px] bg-card">
                 <Filter className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="All Types" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="health">Health</SelectItem>
-                <SelectItem value="ancestry">Ancestry</SelectItem>
-                <SelectItem value="traits">Traits</SelectItem>
+                <SelectItem value="standard">Standard (Health)</SelectItem>
+                <SelectItem value="trait">Traits</SelectItem>
+                <SelectItem value="gene">Gene / Biohacker</SelectItem>
+                <SelectItem value="aggregate">Aggregate (Summary)</SelectItem>
+                <SelectItem value="combined">Combined</SelectItem>
+                <SelectItem value="non-genetic">Non-genetic</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -504,11 +508,50 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
 
 // ─── Jobs tab ─────────────────────────────────────────────────────────────────
 
+/**
+ * A flat list of filter options for the catalogue dropdown.
+ * "all" = no filter. Bundle entries expand to their constituent item IDs.
+ */
+const CATALOGUE_FILTER_OPTIONS: Array<{ value: string; label: string; isBundle?: boolean }> = [
+  { value: "all", label: "All Jobs" },
+  // Individual catalogue items
+  ...CATALOGUE.map(item => ({ value: `item:${item.id}`, label: item.label })),
+  // Bundles as a group shortcut
+  { value: "divider", label: "─── Bundles ───" },
+  ...BUNDLES.map(b => ({ value: `bundle:${b.id}`, label: b.label, isBundle: true })),
+]
+
+function matchesCatalogueFilter(job: AnyJob, filter: string): boolean {
+  if (filter === "all" || filter === "divider") return true
+
+  if (filter.startsWith("bundle:")) {
+    const bundleId = filter.slice("bundle:".length)
+    const itemIds = getCatalogueIdsForBundle(bundleId)
+    return itemIds.some(id => job.catalogue_item_id === id || job.job_type === id)
+  }
+
+  if (filter.startsWith("item:")) {
+    const itemId = filter.slice("item:".length)
+    // Direct catalogue_item_id match
+    if (job.catalogue_item_id === itemId) return true
+    // For bio-chemistry items, any pathway job matches
+    const bioChem = ["methylation", "detox", "histamine", "serotonin", "dopamine"]
+    if (bioChem.includes(itemId) && job.job_type === "bio-chemistry") return true
+    // For ancestry variants
+    if (itemId === "ancestry" && job.job_type === "ancestry" && !job.job_label.toLowerCase().includes("mt")) return true
+    if (itemId === "mtdna" && job.job_label.toLowerCase().includes("mt")) return true
+    return false
+  }
+
+  return true
+}
+
 function JobsTab({ profileId, initialData }: { profileId: string; initialData: PaginatedJobs }) {
   const [data, setData] = useState<PaginatedJobs>(initialData)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [jobSearch, setJobSearch] = useState("")
+  const [catalogueFilter, setCatalogueFilter] = useState("all")
 
   const loadPage = useCallback((page: number) => {
     startTransition(async () => {
@@ -530,14 +573,16 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
   }, [data.jobs, refresh])
 
   const q = jobSearch.trim().toLowerCase()
-  const filteredJobs = q
-    ? data.jobs.filter(j =>
+  const filteredJobs = data.jobs.filter(j => {
+    const matchesSearch = !q || (
       (j.report_name ?? "").toLowerCase().includes(q) ||
       j.job_label.toLowerCase().includes(q) ||
       j.job_type.toLowerCase().includes(q) ||
       getStatusCfg(j.status).label.toLowerCase().includes(q)
     )
-    : data.jobs
+    const matchesFilter = matchesCatalogueFilter(j, catalogueFilter)
+    return matchesSearch && matchesFilter
+  })
 
   const inProgress = data.jobs.filter(j => !getStatusCfg(j.status).terminal).length
   const pdfReady   = data.jobs.filter(j => j.pdf_url).length
@@ -561,6 +606,28 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
             >×</button>
           )}
         </div>
+
+        {/* Catalogue filter */}
+        <Select value={catalogueFilter} onValueChange={setCatalogueFilter}>
+          <SelectTrigger className="w-[200px] h-8 text-sm bg-card shrink-0">
+            <Filter className="w-3.5 h-3.5 mr-1.5 text-muted-foreground shrink-0" />
+            <SelectValue placeholder="Filter by catalogue" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATALOGUE_FILTER_OPTIONS.map(opt =>
+              opt.value === "divider" ? (
+                <div key="divider" className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground pointer-events-none select-none">
+                  Bundles
+                </div>
+              ) : (
+                <SelectItem key={opt.value} value={opt.value} className={opt.isBundle ? "font-medium" : ""}>
+                  {opt.label}
+                </SelectItem>
+              )
+            )}
+          </SelectContent>
+        </Select>
+
         <div className="flex items-center gap-3 text-xs shrink-0">
           {inProgress > 0 && <span className="text-amber-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{inProgress} in progress</span>}
           {pdfReady   > 0 && <span className="text-green-600 flex items-center gap-1"><FileText className="w-3.5 h-3.5" />{pdfReady} PDFs</span>}
@@ -585,18 +652,18 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
             <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />)}</div>
           ) : filteredJobs.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              No jobs match "{jobSearch}"
+              No jobs match{jobSearch ? ` "${jobSearch}"` : ""}{catalogueFilter !== "all" ? ` in this filter` : ""}
             </div>
           ) : (
             <div className="space-y-2">{filteredJobs.map(j => <JobRow key={j.id} job={j} />)}</div>
           )}
-          {!jobSearch && data.totalPages > 1 && (
+          {!(jobSearch || catalogueFilter !== "all") && data.totalPages > 1 && (
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} pageSize={PAGE_SIZE} onPage={loadPage} />
           )}
-          {jobSearch && (
+          {(jobSearch || catalogueFilter !== "all") && (
             <p className="text-xs text-muted-foreground text-center">
               Showing {filteredJobs.length} of {data.jobs.length} jobs on this page
-              {data.totalPages > 1 && " — clear search to paginate"}
+              {data.totalPages > 1 && " — clear filters to paginate"}
             </p>
           )}
         </>
