@@ -110,6 +110,9 @@ async function buildNameMap(token: string): Promise<Map<string, string>> {
 }
 
 function normalize(raw: any, jobType: string, jobLabel: string, nameMap?: Map<string, string>): AnyJob {
+  let label = jobLabel
+  if (raw.ancestry_type === "mtdna") label = "mtDNA Ancestry"
+  else if (raw.ancestry_type === "ancestry") label = "Ancestry"
   return {
     id: raw.id,
     status: raw.status ?? "unknown",
@@ -118,7 +121,7 @@ function normalize(raw: any, jobType: string, jobLabel: string, nameMap?: Map<st
     report_id: raw.report_id,
     report_name: raw.report_id && nameMap ? (nameMap.get(raw.report_id) ?? undefined) : undefined,
     job_type: jobType,
-    job_label: jobLabel,
+    job_label: label,
     pdf_url: raw.pdf_url ?? null,
     error: raw.error,
     handling_failed: raw.handling_failed,
@@ -212,6 +215,10 @@ export async function generateItem(
       payload.bio_chemistry_report_id = item.id
     }
 
+    if (item.ancestryType) {
+      payload.ancestry_type = item.ancestryType
+    }
+
     await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
   } else {
     // FIX: use filterBy to build the correct query parameter
@@ -283,6 +290,10 @@ export async function generateBundle(
 
           if (item.jobType === "bio-chemistry") {
             payload.bio_chemistry_report_id = item.id
+          }
+
+          if (item.ancestryType) {
+            payload.ancestry_type = item.ancestryType
           }
 
           await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)

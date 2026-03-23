@@ -20,6 +20,7 @@ export interface CatalogueItem {
   price: number
   type: "simple" | "report"
   jobType?: SimpleJobType
+  ancestryType?: "ancestry" | "mtdna"
   searchQuery?: string
   filterBy?: "name" | "listing_type"
   /** Whether the UI should show the All / Summary Only / Report Only dropdown.
@@ -75,7 +76,8 @@ export const CATALOGUE: CatalogueItem[] = [
   { id: "longevity",          label: "Longevity Screener",               price: 30, type: "simple", jobType: "longevity-screener" },
   { id: "pgx",                label: "Medication Check (PGx)",           price: 25, type: "simple", jobType: "pgx"                },
   { id: "carrier-status",     label: "Family Planning (Carrier Status)", price: 25, type: "simple", jobType: "carrier-status"     },
-  { id: "ancestry",           label: "Ancestry",                         price: 20, type: "simple", jobType: "ancestry",          note: "" },
+  { id: "ancestry",           label: "Ancestry",                         price: 20, type: "simple", jobType: "ancestry", ancestryType: "ancestry", note: "" },
+  { id: "mtdna",              label: "mtDNA Ancestry",                   price: 20, type: "simple", jobType: "ancestry", ancestryType: "mtdna"                            },
   { id: "methylation",        label: "Methylation Pathway",              price: 25, type: "simple", jobType: "bio-chemistry"      },
   { id: "detox",              label: "Detox Pathway",                    price: 25, type: "simple", jobType: "bio-chemistry"      },
   { id: "histamine",          label: "Histamine Pathway",                price: 25, type: "simple", jobType: "bio-chemistry"      },
@@ -116,7 +118,7 @@ export const BUNDLES: Bundle[] = [
     id: "ancestry-bundle",
     label: "Ancestry Bundle",
     price: 25,
-    itemIds: ["ancestry", "traits"],
+    itemIds: ["ancestry", "mtdna", "traits"],
   },
   {
     id: "ultimate",

@@ -2,8 +2,8 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, User } from "lucide-react"
 import { getArticle } from "@/actions/articles"
-import { getGeneSNPs, getGenotypes, type SNPSummary, type SNPGenotype } from "@/actions/gene"
 import { ArticleClientShell } from "@/components/article-client-shell"
+import { PersonalizedSNPSection } from "@/components/personalized-snp-section"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,143 +27,17 @@ function HtmlContent({ html, className }: { html: string; className?: string }) 
   )
 }
 
-// ─── SNP Table (server-rendered, data already fetched) ────────────────────────
-
-function ImpactBar({ score }: { score: number }) {
-  const filled = Math.max(1, Math.round(score * 4))
-  return (
-    <div className="flex gap-0.5">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className={`h-2 w-5 rounded-sm ${i < filled ? "bg-violet-500" : "bg-muted"}`} />
-      ))}
-    </div>
-  )
-}
-
-function SNPTableInline({
-  snps,
-  genotypes,
-}: {
-  snps: SNPSummary[]
-  genotypes: SNPGenotype[]
-}) {
-  const genotypeMap = new Map(genotypes.map((g) => [g.rsid, g]))
-
-  return (
-    <div className="rounded-xl border border-violet-200 bg-violet-50/30 overflow-hidden my-6">
-      <div className="px-4 py-3 border-b border-violet-200 flex items-center gap-2">
-        <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center shrink-0">
-          <User className="w-3 h-3 text-white" />
-        </div>
-        <span className="text-sm font-semibold text-foreground">Your Personalized SNP Table</span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-violet-200 bg-violet-50">
-              {["Variant", "Genotype", "Frequency", "Alternative Allele", "Impact"].map((h) => (
-                <th key={h} className="py-2 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {snps.map((snp) => {
-              const genotype = genotypeMap.get(snp.rsid)
-              const genotypeStr = genotype?.genotypes?.join(", ") ?? "/"
-
-              // compute frequency (simple: just show alt frequency for first alt)
-              const altFreq = snp.frequency_tables[0]?.gnomad_nfe
-              const freqStr = altFreq !== undefined ? `${Math.round(altFreq * 100)}%` : "/"
-
-              return (
-                <tr key={snp.rsid} className="border-b border-violet-100 hover:bg-violet-50/50 transition-colors">
-                  <td className="py-3 px-4">
-                    <Link
-                      href={`/articles`}
-                      className="text-primary text-sm font-medium hover:underline"
-                    >
-                      {snp.rsid}
-                    </Link>
-                  </td>
-                  <td className="py-3 px-4 text-sm font-mono text-foreground">{genotypeStr}</td>
-                  <td className="py-3 px-4 text-sm text-foreground">{freqStr}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex flex-wrap gap-1">
-                      {snp.alts.slice(0, 4).map((alt, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200"
-                        >
-                          {alt.length === 1 ? alt : alt.slice(0, 1)}
-                        </span>
-                      ))}
-                      {snp.alts.length > 4 && (
-                        <span className="text-xs text-muted-foreground">+{snp.alts.length - 4}</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <ImpactBar score={snp.overall_score} />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default async function ArticleDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ profile_id?: string }>
 }) {
   const { slug } = await params
-  const { profile_id: profileId } = await searchParams
 
   const article = await getArticle(slug).catch(() => null)
   if (!article) notFound()
-
-  // Fetch SNP data for sections that have snps
-  const snpDataMap = new Map<string, { snps: SNPSummary[]; genotypes: SNPGenotype[] }>()
-
-  await Promise.all(
-    article.content
-      .filter((section) => section.snps && section.snps.length > 0)
-      .map(async (section) => {
-        try {
-          // Fetch SNP summaries for each gene associated with the article
-          const allSnps: SNPSummary[] = []
-          await Promise.all(
-            article.genes.filter(Boolean).map(async (gene) => {
-              const page = await getGeneSNPs(gene!, 1, 20).catch(() => null)
-              if (!page) return
-              // Filter to only the rsids in this section
-              const filtered = page.results.filter((s) => section.snps.includes(s.rsid))
-              allSnps.push(...filtered)
-            })
-          )
-
-          // Fetch genotypes if we have a profile
-          let genotypes: SNPGenotype[] = []
-          if (profileId && section.snps.length > 0) {
-            genotypes = await getGenotypes(profileId, section.snps).catch(() => [])
-          }
-
-          snpDataMap.set(section.id, { snps: allSnps, genotypes })
-        } catch {
-          // silently skip
-        }
-      })
-  )
 
   const tocItems = [
     ...article.content.map((s) => ({ id: `section-${s.id}`, title: s.title })),
@@ -239,7 +113,6 @@ export default async function ArticleDetailPage({
 
             {/* Content sections */}
             {article.content.map((section) => {
-              const snpData = snpDataMap.get(section.id)
               // Remove {snp-table} placeholder from text
               const cleanText = section.text.replace(/\{snp-table\}/g, "")
 
@@ -247,8 +120,11 @@ export default async function ArticleDetailPage({
                 <div key={section.id} id={`section-${section.id}`} className="mb-10">
                   <h2 className="text-xl font-bold text-foreground mb-4">{section.title}</h2>
                   <HtmlContent html={cleanText} />
-                  {snpData && snpData.snps.length > 0 && (
-                    <SNPTableInline snps={snpData.snps} genotypes={snpData.genotypes} />
+                  {section.snps && section.snps.length > 0 && (
+                    <PersonalizedSNPSection
+                      rsids={section.snps}
+                      genes={article.genes.filter(Boolean) as string[]}
+                    />
                   )}
                 </div>
               )

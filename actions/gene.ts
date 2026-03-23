@@ -104,7 +104,8 @@ export async function getGeneSNPs(
       cache: "no-store",
     }
   )
-  if (!res.ok) throw new Error(`Failed to fetch SNPs: ${res.status}`)
+  // 400 means invalid gene slug — return empty instead of throwing
+  if (!res.ok) return { count: 0, next: null, previous: null, results: [] }
   return res.json()
 }
 
