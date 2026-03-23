@@ -115,12 +115,14 @@ function SNPIntro({
     if (raw !== null) freqPct = Math.round(raw * 100)
   }
 
+  const [allelesOpen, setAllelesOpen] = useState(false)
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h1 className="text-2xl font-bold text-foreground font-mono">{snp.rsid}</h1>
               <a
@@ -135,17 +137,34 @@ function SNPIntro({
             <p className="text-sm text-muted-foreground">
               Chromosome: {snp.chrom}, Position: {snp.pos.toLocaleString()}
             </p>
-          </div>
-          <div className="text-right text-sm text-muted-foreground shrink-0 max-w-[180px]">
-            <p>Reference Allele: <span className="font-mono font-semibold text-foreground">{snp.ref}</span></p>
-            <div className="mt-0.5">
-              <span>Alternative Alleles: </span>
-              <span className="font-mono font-semibold text-foreground">
-                {snp.alts.slice(0, 3).join(", ")}
-                {snp.alts.length > 3 && (
-                  <span className="font-sans font-normal text-muted-foreground"> +{snp.alts.length - 3} more</span>
-                )}
-              </span>
+            {/* Alleles collapsible */}
+            <div className="mt-3 border-t border-border pt-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                <span>Reference Allele: <span className="font-mono font-semibold text-foreground">{snp.ref}</span></span>
+                <button
+                  onClick={() => setAllelesOpen(o => !o)}
+                  className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Alternative Alleles
+                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full font-medium">{snp.alts.length}</span>
+                  {allelesOpen
+                    ? <ChevronUp className="w-3.5 h-3.5" />
+                    : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {allelesOpen && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {snp.alts.map((alt, i) => (
+                    <span
+                      key={i}
+                      className="inline-block font-mono text-xs font-semibold text-violet-700 bg-violet-50 border border-violet-200 rounded px-2 py-0.5 max-w-[200px] truncate"
+                      title={alt}
+                    >
+                      {alt}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
