@@ -39,9 +39,8 @@ function ImpactBar({ score }: { score: number }) {
       {[0, 1, 2, 3].map((i) => (
         <div
           key={i}
-          className={`h-2 w-5 rounded-sm ${
-            i < filled ? "bg-violet-500" : "bg-muted"
-          }`}
+          className={`h-2 w-5 rounded-sm ${i < filled ? "bg-violet-500" : "bg-muted"
+            }`}
         />
       ))}
     </div>
@@ -99,14 +98,19 @@ function SNPRow({
       </td>
       <td className="py-3 px-4">
         <div className="flex flex-wrap gap-1">
-          {snp.alts.map((alt) => (
+          {snp.alts.slice(0, 4).map((alt, i) => (
             <span
-              key={alt}
-              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200"
+              key={i}
+              className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold border border-violet-200 shrink-0"
             >
               {alt}
             </span>
           ))}
+          {snp.alts.length > 4 && (
+            <span className="inline-flex items-center justify-center h-5 px-1.5 rounded-full bg-muted text-muted-foreground text-xs font-medium shrink-0">
+              +{snp.alts.length - 4}
+            </span>
+          )}
         </div>
       </td>
       <td className="py-3 px-4">
