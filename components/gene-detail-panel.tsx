@@ -24,6 +24,7 @@ import {
   computePersonalizedFrequency,
   getEthnicityKey,
 } from "@/lib/gene-utils"
+import { SNPDetailPanel } from "@/components/snp-detail-panel"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -72,10 +73,12 @@ function SNPRow({
   snp,
   genotype,
   ethnicityKey,
+  onSelectSNP,
 }: {
   snp: SNPSummary
   genotype: SNPGenotype | undefined
   ethnicityKey: ReturnType<typeof getEthnicityKey>
+  onSelectSNP: (rsid: string) => void
 }) {
   const freq = computePersonalizedFrequency(snp, genotype?.genotypes ?? [], ethnicityKey)
   const genotypeStr = genotype?.genotypes?.join(", ") ?? "/"
@@ -83,15 +86,13 @@ function SNPRow({
   return (
     <tr className="border-b border-border hover:bg-muted/30 transition-colors">
       <td className="py-3 px-4">
-        <a
-          href={`https://selfdecode.com/snp/${snp.rsid}/`}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          onClick={() => onSelectSNP(snp.rsid)}
           className="text-primary text-sm font-medium hover:underline inline-flex items-center gap-1"
         >
           {snp.rsid}
           <ExternalLink className="w-3 h-3 opacity-50" />
-        </a>
+        </button>
       </td>
       <td className="py-3 px-4 text-sm text-foreground font-mono">{genotypeStr}</td>
       <td className="py-3 px-4">
@@ -147,6 +148,7 @@ function SNPTable({
   totalCount,
   onLoadMore,
   loadingMore,
+  onSelectSNP,
 }: {
   snps: SNPSummary[]
   genotypes: SNPGenotype[]
@@ -154,6 +156,7 @@ function SNPTable({
   totalCount: number
   onLoadMore: () => void
   loadingMore: boolean
+  onSelectSNP: (rsid: string) => void
 }) {
   const genotypeMap = new Map(genotypes.map((g) => [g.rsid, g]))
 
@@ -192,6 +195,7 @@ function SNPTable({
                 snp={snp}
                 genotype={genotypeMap.get(snp.rsid)}
                 ethnicityKey={ethnicityKey}
+                onSelectSNP={onSelectSNP}
               />
             ))}
           </tbody>
@@ -304,6 +308,7 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [loadingMore, setLoadingMore] = useState(false)
+  const [selectedSnpRsid, setSelectedSnpRsid] = useState<string | null>(null)
 
   const ethnicityKey = getEthnicityKey(ethnicity)
 
@@ -348,6 +353,18 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
       setLoadingMore(false)
     }
   }, [data, currentPage, profileId])
+
+  // ── SNP detail view ──────────────────────────────────────────────────────────
+  if (selectedSnpRsid) {
+    return (
+      <SNPDetailPanel
+        rsid={selectedSnpRsid}
+        profileId={profileId}
+        ethnicity={ethnicity}
+        onBack={() => setSelectedSnpRsid(null)}
+      />
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -447,6 +464,7 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
             totalCount={data.snpPage.count}
             onLoadMore={handleLoadMore}
             loadingMore={loadingMore}
+            onSelectSNP={setSelectedSnpRsid}
           />
 
           {/* Gene info sections */}

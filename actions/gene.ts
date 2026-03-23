@@ -162,3 +162,61 @@ export async function loadMoreSNPs(
   const genotypes = await getGenotypes(profileId, rsids)
   return { snpPage, genotypes }
 }
+
+// ─── SNP Detail Types ─────────────────────────────────────────────────────────
+
+export interface SNPGene {
+  overall_score: number
+  slug: string
+}
+
+export interface SNPTrait {
+  trait_name: string
+  study_id: string | null
+  pub_date: string | null
+  pub_title: string | null
+  pub_author: string | null
+  pub_journal: string | null
+  variant_id: string | null
+  beta: number | null
+}
+
+export interface SNPDetail {
+  rsid: string
+  alts: string[]
+  variant_ids: string[]
+  frequency_tables: SNPFrequencyTable[]
+  chrom: string
+  pos: number
+  ref: string
+  sd_description: string
+  sd_summary: string
+  genes: SNPGene[]
+  traits: SNPTrait[]
+}
+
+// ─── SNP Detail API call ──────────────────────────────────────────────────────
+
+export async function getSNPDetail(rsid: string): Promise<SNPDetail | null> {
+  const token = await getAccessToken()
+  const res = await fetch(
+    `${B2B}/open-target-snp/?rsid=${encodeURIComponent(rsid)}`,
+    {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
+    }
+  )
+  if (!res.ok) return null
+  const data: SNPDetail[] = await res.json()
+  return data[0] ?? null
+}
+
+export async function loadSNPPageData(
+  rsid: string,
+  profileId: string
+): Promise<{ snp: SNPDetail; genotype: SNPGenotype | null } | null> {
+  const snp = await getSNPDetail(rsid)
+  if (!snp) return null
+  const genotypes = await getGenotypes(profileId, [rsid])
+  return { snp, genotype: genotypes[0] ?? null }
+}
