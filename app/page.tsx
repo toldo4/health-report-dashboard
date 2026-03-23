@@ -4,6 +4,7 @@ import { getProfiles } from "@/actions/profile"
 import { CreateProfileDialog } from "@/components/create-profile-dialog"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { DeleteProfileButton } from "@/components/delete-profile-button"
+import { BookOpen } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -23,7 +24,16 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">Nutrigenix Profiles</h1>
           <p className="text-muted-foreground mt-2">Manage user profiles and genome files.</p>
         </div>
-        <CreateProfileDialog />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/articles"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <BookOpen className="w-4 h-4" />
+            Articles
+          </Link>
+          <CreateProfileDialog />
+        </div>
       </div>
 
       <div className="border rounded-md">
