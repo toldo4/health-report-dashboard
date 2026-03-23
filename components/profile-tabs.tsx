@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Dna, FileText, FlaskConical, ShoppingBag, Microscope } from "lucide-react"
+import { Dna, FileText, FlaskConical, Microscope } from "lucide-react"
 
 interface ProfileTabsProps {
   genomeCount:    number
@@ -15,13 +15,12 @@ interface ProfileTabsProps {
   genesContent:   React.ReactNode
 }
 
-type TabId = "genome" | "reports" | "dna-kit" | "orders" | "genes"
+type TabId = "genome" | "reports" | "dna-kit" | "genes"
 
 export function ProfileTabs({
   genomeCount,
   reportCount,
   kitCount,
-  orderCount,
   genomeContent,
   reportsContent,
   kitContent,
@@ -34,19 +33,18 @@ export function ProfileTabs({
     { id: "genome",   label: "Genome",   icon: Dna,          count: genomeCount  },
     { id: "reports",  label: "Reports",  icon: FileText,     count: reportCount  },
     { id: "dna-kit",  label: "DNA Kits", icon: FlaskConical, count: kitCount     },
-    { id: "orders",   label: "Orders",   icon: ShoppingBag,  count: orderCount   },
     { id: "genes",    label: "Genes",    icon: Microscope                        },
   ]
 
   return (
     <div>
-      <div className="flex gap-1 mb-4 bg-muted/50 p-1 rounded-lg border border-border w-fit flex-wrap">
+      <div className="flex gap-1 mb-4 bg-muted/50 p-1 rounded-lg border border-border w-full">
         {tabs.map(({ id, label, icon: Icon, count }) => (
           <button
             key={id}
             onClick={() => setActive(id)}
             className={`
-              flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors
+              flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors
               ${active === id
                 ? "bg-card text-foreground shadow-sm border border-border"
                 : "text-muted-foreground hover:text-foreground"
@@ -68,9 +66,13 @@ export function ProfileTabs({
 
       {active === "genome"  && genomeContent}
       {active === "reports" && reportsContent}
-      {active === "dna-kit" && kitContent}
-      {active === "orders"  && ordersContent}
       {active === "genes"   && genesContent}
+      {active === "dna-kit" && (
+        <div className="space-y-6">
+          {ordersContent}
+          {kitContent}
+        </div>
+      )}
     </div>
   )
 }
