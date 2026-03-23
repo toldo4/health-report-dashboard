@@ -64,8 +64,8 @@ async function DnaKitTabContent({ profileId }: { profileId: string }) {
   ])
   return (
     <div className="space-y-6">
-      <OrdersPanel profileId={profileId} initialRows={orderRows} />
       <DnaKitPanel profileId={profileId} initialJobs={kitJobs} />
+      <OrdersPanel profileId={profileId} initialRows={orderRows} />
     </div>
   )
 }
