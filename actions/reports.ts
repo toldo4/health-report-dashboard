@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache"
 import {
   CATALOGUE,
   BUNDLES,
+  matchesCatalogueItem,
+  isSummaryReport,
+  guessCatalogueItemId,
   type SimpleJobType,
   type AnyJob,
   type PaginatedJobs,
   type ReportSummary,
   type ReportType,
-  guessCatalogueItemId,
 } from "@/lib/reports-catalogue"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
@@ -79,8 +81,8 @@ async function apiPost(url: string, token: string, body: object): Promise<any> {
 }
 
 /**
- * Fetches the full /report-summary/ list (cached for 5 min) and returns it.
- * All report_type-based filtering happens in-memory from this single list.
+ * Fetches the full /report-summary/ list once and caches for 5 minutes.
+ * All filtering happens in-memory from this single list.
  */
 async function fetchAllReportSummaries(token: string): Promise<ReportSummary[]> {
   const res = await fetch(`${B2B}/report-summary/`, {
@@ -91,9 +93,6 @@ async function fetchAllReportSummaries(token: string): Promise<ReportSummary[]> 
   return res.json()
 }
 
-/**
- * Builds a Map<reportId, ReportSummary> for quick lookup by id.
- */
 async function buildSummaryMap(token: string): Promise<Map<string, ReportSummary>> {
   try {
     const list = await fetchAllReportSummaries(token)
@@ -104,37 +103,22 @@ async function buildSummaryMap(token: string): Promise<Map<string, ReportSummary
 }
 
 /**
- * Filters the full summary list for a catalogue item based on its
- * reportTypes + listingType fields, then applies the optional selection
- * (summary_only / report_only) for items that support it.
- *
- * "Summary" reports = aggregate or combined report_types.
- * "Individual" reports = standard, trait, or gene report_types.
+ * Filters the full summary list for a catalogue item using its rules,
+ * then applies the optional selection filter for items that support it.
  */
-function filterSummaries(
+function getReportsForItem(
   all: ReportSummary[],
-  reportTypes: ReportType[],
-  listingType: string | undefined,
-  selection: ReportSelection,
-  showSelection: boolean,
+  itemId: string,
+  selection: ReportSelection = "all",
 ): ReportSummary[] {
-  let results = all.filter(s => {
-    if (s.is_deprecated) return false
-    if (!reportTypes.includes(s.report_type as ReportType)) return false
-    if (listingType && s.listing_type !== listingType) return false
-    return true
-  })
+  const item = CATALOGUE.find(c => c.id === itemId)
+  if (!item?.rules?.length) return []
 
-  if (showSelection) {
-    if (selection === "summary_only") {
-      results = results.filter(s =>
-        s.report_type === "aggregate" || s.report_type === "combined"
-      )
-    } else if (selection === "report_only") {
-      results = results.filter(s =>
-        s.report_type !== "aggregate" && s.report_type !== "combined"
-      )
-    }
+  let results = all.filter(s => !s.is_deprecated && matchesCatalogueItem(s, item))
+
+  if (item.showSelection) {
+    if (selection === "summary_only") results = results.filter(isSummaryReport)
+    else if (selection === "report_only") results = results.filter(s => !isSummaryReport(s))
   }
 
   return results
@@ -161,7 +145,7 @@ function normalize(
     report_name: summary?.name,
     job_type: jobType,
     job_label: label,
-    catalogue_item_id: guessCatalogueItemId(jobType, summary?.report_type, summary?.listing_type),
+    catalogue_item_id: guessCatalogueItemId(jobType, summary),
     pdf_url: raw.pdf_url ?? null,
     error: raw.error,
     handling_failed: raw.handling_failed,
@@ -254,21 +238,10 @@ export async function generateItem(
     if (item.ancestryType) payload.ancestry_type = item.ancestryType
     await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
   } else {
-    // type === "report": filter in-memory by report_type + listingType
     const all = await fetchAllReportSummaries(token)
-    const active = filterSummaries(
-      all,
-      item.reportTypes!,
-      item.listingType,
-      selection,
-      item.showSelection ?? false,
-    )
+    const active = getReportsForItem(all, itemId, selection)
     if (!active.length) {
-      throw new Error(
-        `No reports found for "${item.label}" (types: ${item.reportTypes?.join(", ")})` +
-        (item.listingType ? ` listing: ${item.listingType}` : "") +
-        ` selection: ${selection}`
-      )
+      throw new Error(`No reports found for "${item.label}" (selection: ${selection})`)
     }
     await apiPost(`${B2B}/report-job/bulk-create/`, token, {
       profile_id: profileId,
@@ -290,7 +263,7 @@ export async function generateBundle(
   if (!bundle) throw new Error(`Unknown bundle: ${bundleId}`)
   const token = await getAccessToken()
 
-  // Fetch summaries once for all report-type items in this bundle
+  // Fetch once, reuse for all report-type items
   const allSummaries = await fetchAllReportSummaries(token)
 
   const seen = new Set<string>()
@@ -302,13 +275,9 @@ export async function generateBundle(
       const item = CATALOGUE.find(c => c.id === itemId)
       if (!item) return
 
-      // Dedupe key: for report items, use type+listingType to avoid duplicate bulk calls
-      const dedupeKey = item.type === "simple"
-        ? item.id
-        : `report:${item.reportTypes?.join(",")}:${item.listingType ?? ""}`
-
-      if (seen.has(dedupeKey)) { succeeded.push(item.label); return }
-      seen.add(dedupeKey)
+      // Dedupe by item id (rules are unique per item already)
+      if (seen.has(item.id)) { succeeded.push(item.label); return }
+      seen.add(item.id)
 
       try {
         if (item.type === "simple") {
@@ -321,13 +290,7 @@ export async function generateBundle(
           if (item.ancestryType) payload.ancestry_type = item.ancestryType
           await apiPost(SIMPLE_ENDPOINTS[item.jobType!], token, payload)
         } else {
-          const active = filterSummaries(
-            allSummaries,
-            item.reportTypes!,
-            item.listingType,
-            "all",   // bundles always generate all reports
-            false,
-          )
+          const active = getReportsForItem(allSummaries, item.id, "all")
           if (!active.length) throw new Error("No reports found for bundle generation")
           await apiPost(`${B2B}/report-job/bulk-create/`, token, {
             profile_id: profileId,
@@ -347,7 +310,7 @@ export async function generateBundle(
   return { succeeded, failed }
 }
 
-export async function searchReports(query: string, reportType?: string): Promise<ReportSummary[]> {
+export async function searchReports(query: string, reportType?: ReportType): Promise<ReportSummary[]> {
   const token = await getAccessToken()
   const all = await fetchAllReportSummaries(token)
   const q = query.trim().toLowerCase()

@@ -14,20 +14,42 @@ export type JobStatus =
   | "failed_report_gen" | "failed_pdf"
   | "waiting" | "completed" | "failed"
 
-/**
- * Report types as returned by the /report-summary/ API's `report_type` field.
- *
- * Genetic:
- *   "standard"   – general health reports (e.g. Low Mood, Acne, Joint Pain)
- *   "trait"      – personality / trait reports (e.g. introvert, night owl)
- *   "gene"       – single-gene / neurotransmitter / biohacker reports
- *   "aggregate"  – summary reports that collect results across a topic (e.g. Sleep, Gut Health)
- *   "combined"   – extended aggregates with combo-outcome advice (Diet & Nutrition, Fitness)
- *
- * Non-genetic:
- *   "non-genetic" – generic blog-style content, not profile-specific
- */
 export type ReportType = "standard" | "trait" | "gene" | "aggregate" | "combined" | "non-genetic"
+
+/**
+ * Classification table (listing_type is the PRIMARY key, report_type is a guard):
+ *
+ * ┌──────────────────┬──────────────┬────────────────────────┬─────────────────────────────────┐
+ * │ Catalogue Item   │ Subtype      │ listing_type           │ report_type guard                │
+ * ├──────────────────┼──────────────┼────────────────────────┼─────────────────────────────────┤
+ * │ Health Reports   │ Summary      │ category               │ (any)                           │
+ * │                  │ Individual   │ medicinal              │ NOT gene                        │
+ * ├──────────────────┼──────────────┼────────────────────────┼─────────────────────────────────┤
+ * │ Functional       │ Summary      │ functional             │ (any)                           │
+ * │                  │ Genes        │ NOT disease            │ gene                            │
+ * │                  │ Biohacker    │ experimental           │ (any)                           │
+ * ├──────────────────┼──────────────┼────────────────────────┼─────────────────────────────────┤
+ * │ Medical Reports  │ Summary      │ disease                │ aggregate                       │
+ * │                  │ Individual   │ disease                │ NOT aggregate, NOT gene         │
+ * ├──────────────────┼──────────────┼────────────────────────┼─────────────────────────────────┤
+ * │ Traits           │ —            │ non-medicinal          │ (any)                           │
+ * └──────────────────┴──────────────┴────────────────────────┴─────────────────────────────────┘
+ *
+ * Note: Functional "Genes" excludes listing_type=disease to avoid overlap with Medical.
+ *       Functional "Biohacker" (experimental) and "Genes" (experimental) both roll into
+ *       the single "Functional Reports" catalogue item.
+ */
+
+/**
+ * A single match condition for a report-type catalogue item.
+ * A report matches if ALL defined conditions are satisfied (AND logic within a rule).
+ */
+export interface ReportMatchRule {
+  listingTypes?: string[]
+  excludeListingTypes?: string[]
+  reportTypes?: ReportType[]
+  excludeReportTypes?: ReportType[]
+}
 
 export interface CatalogueItem {
   id: string
@@ -36,19 +58,11 @@ export interface CatalogueItem {
   type: "simple" | "report"
   jobType?: SimpleJobType
   ancestryType?: "ancestry" | "mtdna"
-
   /**
-   * For type="report" items: which report_type values to include when
-   * fetching from /report-summary/. Replaces the old searchQuery/filterBy.
-   *
-   * Additionally, an optional `listingType` can narrow results further
-   * (e.g. "medicinal" vs "functional") when multiple report_types share
-   * the same listing bucket.
+   * For type="report" items: one or more match rules.
+   * A report is included if it satisfies ANY rule (OR between rules, AND within a rule).
    */
-  reportTypes?: ReportType[]
-  listingType?: string
-
-  /** Whether the UI should show the All / Summary Only / Report Only dropdown. */
+  rules?: ReportMatchRule[]
   showSelection?: boolean
   note?: string
 }
@@ -70,7 +84,6 @@ export interface AnyJob {
   report_name?: string
   job_type: string
   job_label: string
-  /** The catalogue item id this job maps to, for filtering in the Jobs tab. */
   catalogue_item_id?: string
   pdf_url?: string | null
   error?: string
@@ -97,26 +110,9 @@ export interface ReportSummary {
 }
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
-//
-// Classification rationale per report_type:
-//
-//  Health Reports     → report_type: "standard" + "aggregate" + "combined"
-//                       listing_type: any (health-oriented)
-//                       showSelection: true because aggregates (summaries) vs
-//                       individual (standard) is a meaningful split.
-//
-//  Traits             → report_type: "trait"
-//
-//  Functional Reports → report_type: "aggregate" + "gene"
-//                       listing_type: "functional"
-//                       Always show all — no meaningful summary/individual split.
-//
-//  Medical Reports    → report_type: "standard"
-//                       listing_type: "medicinal"
-//                       Always show all — no aggregates exist in this bucket.
 
 export const CATALOGUE: CatalogueItem[] = [
-  // ── Simple jobs (dedicated endpoints) ───────────────────────────────────────
+  // ── Simple jobs ──────────────────────────────────────────────────────────────
   { id: "health-overview",  label: "Health Overview Report",           price: 30, type: "simple", jobType: "health-overview"    },
   { id: "medical-overview", label: "Medical Overview Report",          price: 75, type: "simple", jobType: "clinical-overview"  },
   { id: "longevity",        label: "Longevity Screener",               price: 30, type: "simple", jobType: "longevity-screener" },
@@ -130,56 +126,70 @@ export const CATALOGUE: CatalogueItem[] = [
   { id: "serotonin",        label: "Serotonin Pathway",                price: 25, type: "simple", jobType: "bio-chemistry" },
   { id: "dopamine",         label: "Dopamine Pathway",                 price: 25, type: "simple", jobType: "bio-chemistry" },
 
-  // ── Report jobs (bulk /report-job/bulk-create/) ──────────────────────────────
+  // ── Report jobs ──────────────────────────────────────────────────────────────
 
-  // Health: standard (individual reports) + aggregate/combined (summary reports).
-  // showSelection=true because "Summary Only" vs "Reports Only" is useful here.
+  // Health Reports
+  //   Summary:    listing_type=category (any report_type)
+  //   Individual: listing_type=medicinal, report_type != gene
   {
     id: "health-reports",
     label: "Health Reports",
     price: 30,
     type: "report",
-    reportTypes: ["standard", "aggregate", "combined"],
-    listingType: "health",        // narrows to health-oriented listing bucket
+    rules: [
+      { listingTypes: ["category"] },
+      { listingTypes: ["medicinal"], excludeReportTypes: ["gene"] },
+    ],
     showSelection: true,
     note: "Summary + Individual",
   },
 
-  // Traits: dedicated report_type — no listing_type filter needed.
+  // Traits: listing_type=non-medicinal (any report_type)
   {
     id: "traits",
     label: "Traits",
     price: 10,
     type: "report",
-    reportTypes: ["trait"],
+    rules: [
+      { listingTypes: ["non-medicinal"] },
+    ],
     showSelection: false,
     note: "",
   },
 
-  // Functional: aggregates + gene reports under the "functional" listing bucket.
-  // No summary/individual split — always generate all.
+  // Functional Reports
+  //   Summary:   listing_type=functional (any report_type)
+  //   Genes:     report_type=gene, listing_type != disease
+  //   Biohacker: listing_type=experimental (any report_type)
   {
     id: "functional-reports",
     label: "Functional Reports",
     price: 30,
     type: "report",
-    reportTypes: ["aggregate", "gene"],
-    listingType: "functional",
+    rules: [
+      { listingTypes: ["functional"] },
+      { reportTypes: ["gene"], excludeListingTypes: ["disease"] },
+      { listingTypes: ["experimental"] },
+    ],
     showSelection: false,
     note: "Summary + Genes + Biohacker",
   },
 
-  // Medical: standard reports under the "medicinal" listing bucket.
-  // No aggregates exist here — always generate all.
+  // Medical Reports
+  //   Summary:    listing_type=disease, report_type=aggregate
+  //   Individual: listing_type=disease, report_type != aggregate AND != gene
   {
     id: "medical-reports",
     label: "Medical Reports",
     price: 30,
     type: "report",
-    reportTypes: ["standard"],
-    listingType: "medicinal",
+    rules: [
+      { listingTypes: ["disease"], reportTypes: ["aggregate"] },
+      { listingTypes: ["disease"], reportTypes: ["gene"] },
+      { listingTypes: ["disease"], excludeReportTypes: ["aggregate", "gene"] },
+    ],
     showSelection: false,
-    note: "Individual Reports",
+    note: "Summary + Individual",
   },
 ]
 
@@ -224,46 +234,53 @@ export const BUNDLES: Bundle[] = [
   },
 ]
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Matching helpers ─────────────────────────────────────────────────────────
 
-/**
- * Returns all catalogue item IDs that belong to a given bundle,
- * including the bundle's own simple-job items.
- */
+export function matchesRule(report: ReportSummary, rule: ReportMatchRule): boolean {
+  if (rule.listingTypes && !rule.listingTypes.includes(report.listing_type ?? ""))
+    return false
+  if (rule.excludeListingTypes && rule.excludeListingTypes.includes(report.listing_type ?? ""))
+    return false
+  if (rule.reportTypes && !rule.reportTypes.includes(report.report_type as ReportType))
+    return false
+  if (rule.excludeReportTypes && rule.excludeReportTypes.includes(report.report_type as ReportType))
+    return false
+  return true
+}
+
+export function matchesCatalogueItem(report: ReportSummary, item: CatalogueItem): boolean {
+  if (!item.rules?.length) return false
+  return item.rules.some(rule => matchesRule(report, rule))
+}
+
+export function isSummaryReport(report: ReportSummary): boolean {
+  return (report.report_type === "aggregate" || report.report_type === "combined")
+    || report.listing_type === "category"
+}
+
 export function getCatalogueIdsForBundle(bundleId: string): string[] {
   const bundle = BUNDLES.find(b => b.id === bundleId)
   return bundle ? bundle.itemIds : []
 }
 
-/**
- * Given a job's job_type and report_type (from the report summary),
- * returns the best matching catalogue item id for filtering purposes.
- */
 export function guessCatalogueItemId(
   jobType: string,
-  reportType?: string,
-  listingType?: string,
+  report?: ReportSummary,
 ): string | undefined {
-  // Simple job types map 1:1 to catalogue item ids
   const directMap: Record<string, string> = {
-    "health-overview":   "health-overview",
-    "clinical-overview": "medical-overview",
-    "longevity-screener":"longevity",
-    "pgx":               "pgx",
-    "carrier-status":    "carrier-status",
-    "bio-chemistry":     "methylation", // any pathway; filter shows all pathway jobs
+    "health-overview":    "health-overview",
+    "clinical-overview":  "medical-overview",
+    "longevity-screener": "longevity",
+    "pgx":                "pgx",
+    "carrier-status":     "carrier-status",
+    "bio-chemistry":      "methylation",
   }
   if (directMap[jobType]) return directMap[jobType]
-
-  // For report-job types, match by report_type + listing_type
-  if (jobType === "report-job" && reportType) {
+  if (jobType === "report-job" && report) {
     for (const item of CATALOGUE) {
       if (item.type !== "report") continue
-      if (!item.reportTypes?.includes(reportType as ReportType)) continue
-      if (item.listingType && listingType && item.listingType !== listingType) continue
-      return item.id
+      if (matchesCatalogueItem(report, item)) return item.id
     }
   }
-
   return undefined
 }
