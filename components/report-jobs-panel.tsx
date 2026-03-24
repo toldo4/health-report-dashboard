@@ -82,7 +82,13 @@ function JobDetail({ job }: { job: AnyJob }) {
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs px-4 py-3">
       <div><p className="text-muted-foreground">Job ID</p><p className="font-mono break-all mt-0.5">{job.id}</p></div>
-      <div><p className="text-muted-foreground">Type</p><p className="mt-0.5">{job.job_type}</p></div>
+      <div><p className="text-muted-foreground">Job Type</p><p className="mt-0.5">{job.job_type}</p></div>
+      {job.report_listing_type && (
+        <div><p className="text-muted-foreground">Listing Type</p><p className="mt-0.5 capitalize">{job.report_listing_type}</p></div>
+      )}
+      {job.report_type && (
+        <div><p className="text-muted-foreground">Report Type</p><p className="mt-0.5 capitalize">{job.report_type}</p></div>
+      )}
       {job.report_id && <div className="col-span-2"><p className="text-muted-foreground">Report ID</p><p className="font-mono break-all mt-0.5">{job.report_id}</p></div>}
       {job.finished_at && <div><p className="text-muted-foreground">Finished</p><p className="mt-0.5">{fmt(job.finished_at)}</p></div>}
       {job.error && <div className="col-span-2"><p className="text-muted-foreground">Error</p><p className="mt-0.5 text-red-700 break-words">{job.error}</p></div>}
@@ -158,14 +164,27 @@ function GroupedJobRow({ jobs }: { jobs: AnyJob[] }) {
           <img
             src={latest.report_image}
             alt=""
-            className="w-7 h-7 rounded-md object-cover shrink-0 bg-white/60"
-            onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
+            className={[
+              "w-7 h-7 rounded-md shrink-0 bg-white/60",
+              // PNGs are square icons — cover. SVGs are wide illustrations — contain with padding.
+              latest.report_image.endsWith(".svg")
+                ? "object-contain p-0.5"
+                : "object-cover",
+            ].join(" ")}
+            onError={e => {
+              const el = e.target as HTMLImageElement
+              el.style.display = "none"
+              el.nextElementSibling?.removeAttribute("style")
+            }}
           />
-        ) : (
-          <div className="w-7 h-7 rounded-md bg-black/5 shrink-0 flex items-center justify-center">
-            <FileText className="w-3.5 h-3.5 text-muted-foreground/50" />
-          </div>
-        )}
+        ) : null}
+        {/* fallback placeholder — hidden when image loads successfully */}
+        <div
+          className="w-7 h-7 rounded-md bg-black/5 shrink-0 flex items-center justify-center"
+          style={latest.report_image ? { display: "none" } : undefined}
+        >
+          <FileText className="w-3.5 h-3.5 text-muted-foreground/50" />
+        </div>
         <span className="font-medium text-foreground truncate flex-1 min-w-0">{displayName}</span>
         {older.length > 0 && (
           <button

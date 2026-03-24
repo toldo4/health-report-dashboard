@@ -82,7 +82,9 @@ export interface AnyJob {
   profile_id?: string
   report_id?: string
   report_name?: string
-  report_image?: string | null   // thumbnail icon from /report-summary/ image field
+  report_image?: string | null   // image (PNG icon) or illustration (SVG) from /report-summary/
+  report_listing_type?: string | null
+  report_type?: string | null
   job_type: string
   job_label: string
   catalogue_item_id?: string
@@ -106,10 +108,12 @@ export interface ReportSummary {
   name: string
   report_type: ReportType | string
   area: string[]
-  image?: string
-  illustration?: string
   is_deprecated: boolean
   listing_type?: string
+  /** Small square PNG icon — best fit for thumbnails. */
+  image?: string | null
+  /** Larger SVG illustration — fallback if image is absent. */
+  illustration?: string | null
 }
 
 // ─── Catalogue ────────────────────────────────────────────────────────────────
