@@ -146,7 +146,7 @@ export default async function ProfileDetailPage({
         <EditProfileDialog profile={profile} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1">
           <SectionCard title="Profile Details">
             <InfoRow icon={User}     label="Biological Sex"      value={profile.sex} />
@@ -159,7 +159,7 @@ export default async function ProfileDetailPage({
           </SectionCard>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <ProfileTabs
             kitContent={
               <Suspense fallback={<TabSkeleton />}>
