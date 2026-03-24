@@ -76,21 +76,33 @@ function fmt(d: string) {
 
 type Tab = "catalogue" | "jobs"
 
-// ─── Job Row ──────────────────────────────────────────────────────────────────
+// ─── Job detail panel ─────────────────────────────────────────────────────────
 
-function JobRow({ job }: { job: AnyJob }) {
-  const [expanded, setExpanded] = useState(false)
+function JobDetail({ job }: { job: AnyJob }) {
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs px-4 py-3">
+      <div><p className="text-muted-foreground">Job ID</p><p className="font-mono break-all mt-0.5">{job.id}</p></div>
+      <div><p className="text-muted-foreground">Type</p><p className="mt-0.5">{job.job_type}</p></div>
+      {job.report_id && <div className="col-span-2"><p className="text-muted-foreground">Report ID</p><p className="font-mono break-all mt-0.5">{job.report_id}</p></div>}
+      {job.finished_at && <div><p className="text-muted-foreground">Finished</p><p className="mt-0.5">{fmt(job.finished_at)}</p></div>}
+      {job.error && <div className="col-span-2"><p className="text-muted-foreground">Error</p><p className="mt-0.5 text-red-700 break-words">{job.error}</p></div>}
+    </div>
+  )
+}
+
+// ─── Single job line (used inside GroupedJobRow) ──────────────────────────────
+
+function JobLine({ job, isInsideGroup = false }: { job: AnyJob; isInsideGroup?: boolean }) {
+  const [detailOpen, setDetailOpen] = useState(false)
   const cfg = getStatusCfg(job.status)
   const Icon = cfg.icon
-  const displayName = job.report_name ?? job.job_label
 
   return (
-    <div className={`rounded-lg border ${cfg.bg} overflow-hidden text-sm`}>
+    <div className={isInsideGroup ? "border-t border-black/5" : ""}>
       <div className="px-4 py-3 flex items-center gap-3">
         <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-foreground truncate max-w-[240px]">{displayName}</span>
             <span className={`inline-flex items-center gap-1 text-xs font-medium ${cfg.color}`}>
               <Icon className="w-3 h-3" />
               {cfg.label}
@@ -116,20 +128,57 @@ function JobRow({ job }: { job: AnyJob }) {
             </a>
           )}
           <button
-            onClick={() => setExpanded(v => !v)}
+            onClick={() => setDetailOpen(v => !v)}
             className="p-1 rounded hover:bg-black/5 text-muted-foreground"
           >
-            {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {detailOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
-      {expanded && (
-        <div className="border-t border-black/5 px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-          <div><p className="text-muted-foreground">Job ID</p><p className="font-mono break-all mt-0.5">{job.id}</p></div>
-          <div><p className="text-muted-foreground">Type</p><p className="mt-0.5">{job.job_type}</p></div>
-          {job.report_id && <div className="col-span-2"><p className="text-muted-foreground">Report ID</p><p className="font-mono break-all mt-0.5">{job.report_id}</p></div>}
-          {job.finished_at && <div><p className="text-muted-foreground">Finished</p><p className="mt-0.5">{fmt(job.finished_at)}</p></div>}
-          {job.error && <div className="col-span-2"><p className="text-muted-foreground">Error</p><p className="mt-0.5 text-red-700 break-words">{job.error}</p></div>}
+      {detailOpen && <div className="border-t border-black/5"><JobDetail job={job} /></div>}
+    </div>
+  )
+}
+
+// ─── Grouped job row ──────────────────────────────────────────────────────────
+// jobs[] is pre-sorted newest-first so jobs[0] is always the latest.
+
+function GroupedJobRow({ jobs }: { jobs: AnyJob[] }) {
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const latest = jobs[0]
+  const older  = jobs.slice(1)
+  const cfg    = getStatusCfg(latest.status)
+  const displayName = latest.report_name ?? latest.job_label
+
+  return (
+    <div className={`rounded-lg border ${cfg.bg} overflow-hidden text-sm`}>
+      {/* ── Name bar ── */}
+      <div className="px-4 pt-3 pb-0 flex items-center gap-2 min-w-0">
+        <span className="font-medium text-foreground truncate flex-1 min-w-0">{displayName}</span>
+        {older.length > 0 && (
+          <button
+            onClick={() => setHistoryOpen(v => !v)}
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground shrink-0 transition-colors ml-2"
+          >
+            <Clock className="w-3 h-3" />
+            {older.length} older
+            {historyOpen
+              ? <ChevronUp className="w-3 h-3 ml-0.5" />
+              : <ChevronDown className="w-3 h-3 ml-0.5" />}
+          </button>
+        )}
+      </div>
+
+      {/* ── Latest job line ── */}
+      <JobLine job={latest} />
+
+      {/* ── Older versions ── */}
+      {historyOpen && (
+        <div className="bg-black/[0.025]">
+          <p className="px-4 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            Previous versions
+          </p>
+          {older.map(job => <JobLine key={job.id} job={job} isInsideGroup />)}
         </div>
       )}
     </div>
@@ -546,6 +595,22 @@ function matchesCatalogueFilter(job: AnyJob, filter: string): boolean {
   return true
 }
 
+/**
+ * Groups a flat sorted-newest-first job list by display name.
+ * Each group is itself sorted newest-first; the first element is the latest.
+ * Order of groups preserves the order of first appearance (i.e. most-recently-touched group first).
+ */
+function groupJobs(jobs: AnyJob[]): AnyJob[][] {
+  const order: string[] = []
+  const map = new Map<string, AnyJob[]>()
+  for (const job of jobs) {
+    const key = job.report_name ?? job.job_label
+    if (!map.has(key)) { map.set(key, []); order.push(key) }
+    map.get(key)!.push(job)
+  }
+  return order.map(k => map.get(k)!)
+}
+
 function JobsTab({ profileId, initialData }: { profileId: string; initialData: PaginatedJobs }) {
   const [data, setData] = useState<PaginatedJobs>(initialData)
   const [isPending, startTransition] = useTransition()
@@ -655,14 +720,18 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
               No jobs match{jobSearch ? ` "${jobSearch}"` : ""}{catalogueFilter !== "all" ? ` in this filter` : ""}
             </div>
           ) : (
-            <div className="space-y-2">{filteredJobs.map(j => <JobRow key={j.id} job={j} />)}</div>
+            <div className="space-y-2">
+              {groupJobs(filteredJobs).map(group => (
+                <GroupedJobRow key={group[0].id} jobs={group} />
+              ))}
+            </div>
           )}
           {!(jobSearch || catalogueFilter !== "all") && data.totalPages > 1 && (
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} pageSize={PAGE_SIZE} onPage={loadPage} />
           )}
           {(jobSearch || catalogueFilter !== "all") && (
             <p className="text-xs text-muted-foreground text-center">
-              Showing {filteredJobs.length} of {data.jobs.length} jobs on this page
+              Showing {groupJobs(filteredJobs).length} group{groupJobs(filteredJobs).length !== 1 ? "s" : ""} ({filteredJobs.length} job{filteredJobs.length !== 1 ? "s" : ""}) on this page
               {data.totalPages > 1 && " — clear filters to paginate"}
             </p>
           )}
