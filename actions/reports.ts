@@ -143,6 +143,7 @@ function normalize(
     profile_id: raw.profile_id,
     report_id: raw.report_id,
     report_name: summary?.name,
+    report_image: summary?.illustration ?? null,
     job_type: jobType,
     job_label: label,
     catalogue_item_id: guessCatalogueItemId(jobType, summary),

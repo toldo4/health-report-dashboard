@@ -153,7 +153,19 @@ function GroupedJobRow({ jobs }: { jobs: AnyJob[] }) {
   return (
     <div className={`rounded-lg border ${cfg.bg} overflow-hidden text-sm`}>
       {/* ── Name bar ── */}
-      <div className="px-4 pt-3 pb-0 flex items-center gap-2 min-w-0">
+      <div className="px-4 pt-3 pb-0 flex items-center gap-2.5 min-w-0">
+        {latest.report_image ? (
+          <img
+            src={latest.report_image}
+            alt=""
+            className="w-7 h-7 rounded-md object-cover shrink-0 bg-white/60"
+            onError={e => { (e.target as HTMLImageElement).style.display = "none" }}
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-md bg-black/5 shrink-0 flex items-center justify-center">
+            <FileText className="w-3.5 h-3.5 text-muted-foreground/50" />
+          </div>
+        )}
         <span className="font-medium text-foreground truncate flex-1 min-w-0">{displayName}</span>
         {older.length > 0 && (
           <button

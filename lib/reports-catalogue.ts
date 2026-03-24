@@ -82,6 +82,7 @@ export interface AnyJob {
   profile_id?: string
   report_id?: string
   report_name?: string
+  report_image?: string | null   // thumbnail icon from /report-summary/ image field
   job_type: string
   job_label: string
   catalogue_item_id?: string
@@ -105,6 +106,8 @@ export interface ReportSummary {
   name: string
   report_type: ReportType | string
   area: string[]
+  image?: string
+  illustration?: string
   is_deprecated: boolean
   listing_type?: string
 }
