@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select"
 import {
   getAllJobsPaginated,
+  getAllJobs,
   generateItem,
   generateBundle,
   searchReports,
@@ -644,10 +645,14 @@ function groupJobs(jobs: AnyJob[]): AnyJob[][] {
 
 function JobsTab({ profileId, initialData }: { profileId: string; initialData: PaginatedJobs }) {
   const [data, setData] = useState<PaginatedJobs>(initialData)
+  const [allJobsCache, setAllJobsCache] = useState<AnyJob[] | null>(null)
+  const [isFetchingAll, setIsFetchingAll] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [jobSearch, setJobSearch] = useState("")
   const [catalogueFilter, setCatalogueFilter] = useState("all")
+
+  const isFiltering = !!jobSearch.trim() || catalogueFilter !== "all"
 
   const loadPage = useCallback((page: number) => {
     startTransition(async () => {
@@ -659,17 +664,37 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
     })
   }, [profileId])
 
-  const refresh = useCallback(() => loadPage(data.page), [loadPage, data.page])
+  const refresh = useCallback(() => {
+    loadPage(data.page)
+    if (allJobsCache !== null) {
+      getAllJobs(profileId).then(jobs => {
+        setAllJobsCache(jobs)
+        setLastRefresh(new Date())
+      }).catch(() => {})
+    }
+  }, [loadPage, data.page, allJobsCache, profileId])
+
+  // Fetch all jobs when filtering becomes active
+  useEffect(() => {
+    if (!isFiltering || allJobsCache !== null || isFetchingAll) return
+    setIsFetchingAll(true)
+    getAllJobs(profileId).then(jobs => {
+      setAllJobsCache(jobs)
+      setLastRefresh(new Date())
+    }).catch(() => {}).finally(() => setIsFetchingAll(false))
+  }, [isFiltering, allJobsCache, isFetchingAll, profileId])
+
+  const sourceJobs = isFiltering ? (allJobsCache ?? data.jobs) : data.jobs
 
   useEffect(() => {
-    const hasActive = data.jobs.some(j => !getStatusCfg(j.status).terminal)
+    const hasActive = sourceJobs.some(j => !getStatusCfg(j.status).terminal)
     if (!hasActive) return
     const id = setInterval(refresh, 10_000)
     return () => clearInterval(id)
-  }, [data.jobs, refresh])
+  }, [sourceJobs, refresh])
 
   const q = jobSearch.trim().toLowerCase()
-  const filteredJobs = data.jobs.filter(j => {
+  const filteredJobs = sourceJobs.filter(j => {
     const matchesSearch = !q || (
       (j.report_name ?? "").toLowerCase().includes(q) ||
       j.job_label.toLowerCase().includes(q) ||
@@ -695,7 +720,10 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
             placeholder="Search jobs…"
             className="pl-9 h-8 text-sm"
           />
-          {jobSearch && (
+          {isFetchingAll && jobSearch && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          )}
+          {jobSearch && !isFetchingAll && (
             <button
               onClick={() => setJobSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground leading-none text-base"
@@ -757,13 +785,15 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
               ))}
             </div>
           )}
-          {!(jobSearch || catalogueFilter !== "all") && data.totalPages > 1 && (
+          {!isFiltering && data.totalPages > 1 && (
             <Pagination page={data.page} totalPages={data.totalPages} total={data.total} pageSize={PAGE_SIZE} onPage={loadPage} />
           )}
-          {(jobSearch || catalogueFilter !== "all") && (
+          {isFiltering && (
             <p className="text-xs text-muted-foreground text-center">
-              Showing {groupJobs(filteredJobs).length} group{groupJobs(filteredJobs).length !== 1 ? "s" : ""} ({filteredJobs.length} job{filteredJobs.length !== 1 ? "s" : ""}) on this page
-              {data.totalPages > 1 && " — clear filters to paginate"}
+              {isFetchingAll
+                ? "Searching all jobs…"
+                : `${groupJobs(filteredJobs).length} group${groupJobs(filteredJobs).length !== 1 ? "s" : ""} (${filteredJobs.length} job${filteredJobs.length !== 1 ? "s" : ""}) across all pages`
+              }
             </p>
           )}
         </>
