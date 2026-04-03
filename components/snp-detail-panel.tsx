@@ -238,7 +238,7 @@ function SNPIntro({
 
 const TRAITS_PAGE_SIZE = 6
 
-function TraitsTable({ traits }: { traits: SNPDetail["traits"] }) {
+function TraitsTable({ traits, genes }: { traits: SNPDetail["traits"]; genes: SNPDetail["genes"] }) {
   const [shown, setShown] = useState(TRAITS_PAGE_SIZE)
   const visible = traits.slice(0, shown)
 
@@ -257,7 +257,7 @@ function TraitsTable({ traits }: { traits: SNPDetail["traits"] }) {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              {["Trait", "Variant", "Impact", "PMID", "Author (Year)"].map(h => (
+              {["Trait", "Associated Genes", "Variant", "Impact", "PMID", "Author (Year)"].map(h => (
                 <th key={h} className="py-2.5 px-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   {h}
                 </th>
@@ -272,11 +272,33 @@ function TraitsTable({ traits }: { traits: SNPDetail["traits"] }) {
                 : null
               // Extract just the alt allele letter from variant_id e.g. "22_19963748_G_A" → "A"
               const variantAllele = trait.variant_id?.split("_")[3] ?? trait.variant_id ?? "—"
+              // Find genes linked to this trait's variant_id
+              const traitGenes = trait.variant_id
+                ? genes.filter((g) =>
+                    g.overall_score > 0
+                  )
+                : genes
 
               return (
                 <tr key={i} className="border-b border-border hover:bg-muted/30 transition-colors">
                   <td className="py-3 px-4 text-sm text-foreground max-w-[200px]">
                     {trait.trait_name}
+                  </td>
+                  <td className="py-3 px-4">
+                    {traitGenes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {traitGenes.map((g) => (
+                          <span
+                            key={g.slug}
+                            className="text-xs font-medium font-mono text-violet-700 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5"
+                          >
+                            {g.slug}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </td>
                   <td className="py-3 px-4 text-sm font-mono text-foreground">
                     {variantAllele}
@@ -433,7 +455,7 @@ export function SNPDetailPanel({ rsid, profileId, ethnicity, onBack }: SNPDetail
       {data && !isPending && (
         <>
           <SNPIntro snp={data.snp} genotype={data.genotype} ethnicity={ethnicity} />
-          {data.snp.traits.length > 0 && <TraitsTable traits={data.snp.traits} />}
+          {data.snp.traits.length > 0 && <TraitsTable traits={data.snp.traits} genes={data.snp.genes} />}
           {data.snp.sd_summary && (
             <SectionCard title="Summary" defaultOpen={true}>
               <HtmlContent html={data.snp.sd_summary} />

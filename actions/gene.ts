@@ -262,3 +262,23 @@ export async function loadSNPPageData(
   const genotypes = await getGenotypes(profileId, [rsid])
   return { snp, genotype: genotypes[0] ?? null }
 }
+
+export async function searchGeneSNPs(
+  geneSlug: string,
+  rsids: string[],
+  profileId: string
+): Promise<{ snps: SNPSummary[]; genotypes: SNPGenotype[] }> {
+  if (rsids.length === 0) return { snps: [], genotypes: [] }
+  const token = await getAccessToken()
+  const res = await fetch(
+    `${B2B}/open-target-snp-summary/?gene_slug=${encodeURIComponent(geneSlug)}&rsid=${encodeURIComponent(rsids.join(","))}&page_size=20`,
+    {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      cache: "no-store",
+    }
+  )
+  if (!res.ok) return { snps: [], genotypes: [] }
+  const page: SNPSummaryPage = await res.json()
+  const genotypes = await getGenotypes(profileId, page.results.map((s) => s.rsid))
+  return { snps: page.results, genotypes }
+}

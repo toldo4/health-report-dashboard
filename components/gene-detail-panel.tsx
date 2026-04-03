@@ -15,6 +15,7 @@ import {
 import {
   loadGenePageData,
   loadMoreSNPs,
+  searchGeneSNPs,
   type GenePageData,
   type SNPSummary,
   type SNPGenotype,
@@ -149,6 +150,10 @@ function SNPTable({
   onLoadMore,
   loadingMore,
   onSelectSNP,
+  onSnpSearch,
+  onSnpSearchClear,
+  snpSearchActive,
+  snpSearchPending,
 }: {
   snps: SNPSummary[]
   genotypes: SNPGenotype[]
@@ -157,13 +162,29 @@ function SNPTable({
   onLoadMore: () => void
   loadingMore: boolean
   onSelectSNP: (rsid: string) => void
+  onSnpSearch: (query: string) => void
+  onSnpSearchClear: () => void
+  snpSearchActive: boolean
+  snpSearchPending: boolean
 }) {
+  const [snpQuery, setSnpQuery] = useState("")
   const genotypeMap = new Map(genotypes.map((g) => [g.rsid, g]))
+
+  const handleSearch = () => {
+    const q = snpQuery.trim()
+    if (!q) return
+    onSnpSearch(q)
+  }
+
+  const handleClear = () => {
+    setSnpQuery("")
+    onSnpSearchClear()
+  }
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-4">
+        <div className="flex items-center gap-2 shrink-0">
           <h2 className="text-sm font-semibold text-foreground">Your SNP Table</h2>
           <div className="group relative">
             <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
@@ -172,8 +193,42 @@ function SNPTable({
             </div>
           </div>
         </div>
-        <span className="text-xs text-muted-foreground">
-          Showing {snps.length} / {totalCount.toLocaleString()}
+
+        <div className="flex items-center gap-2 flex-1 max-w-xs">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={snpQuery}
+              onChange={(e) => setSnpQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Filter by rsID…"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          {snpSearchActive ? (
+            <button
+              onClick={handleClear}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors shrink-0"
+            >
+              Clear
+            </button>
+          ) : (
+            <button
+              onClick={handleSearch}
+              disabled={!snpQuery.trim() || snpSearchPending}
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors disabled:opacity-40 shrink-0 flex items-center gap-1"
+            >
+              {snpSearchPending ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              Search
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-muted-foreground ml-auto shrink-0">
+          {snpSearchActive
+            ? `${snps.length} result${snps.length !== 1 ? "s" : ""}`
+            : `Showing ${snps.length} / ${totalCount.toLocaleString()}`}
         </span>
       </div>
 
@@ -301,6 +356,7 @@ interface GeneDetailPanelProps {
 
 export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) {
   const [query, setQuery] = useState("")
+  const [snpDirectQuery, setSnpDirectQuery] = useState("")
   const [data, setData] = useState<GenePageData | null>(null)
   const [allSNPs, setAllSNPs] = useState<SNPSummary[]>([])
   const [allGenotypes, setAllGenotypes] = useState<SNPGenotype[]>([])
@@ -309,6 +365,8 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
   const [isPending, startTransition] = useTransition()
   const [loadingMore, setLoadingMore] = useState(false)
   const [selectedSnpRsid, setSelectedSnpRsid] = useState<string | null>(null)
+  const [snpSearchResults, setSnpSearchResults] = useState<{ snps: SNPSummary[]; genotypes: SNPGenotype[] } | null>(null)
+  const [snpSearchPending, setSnpSearchPending] = useState(false)
 
   const ethnicityKey = getEthnicityKey(ethnicity)
 
@@ -337,6 +395,29 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
       }
     })
   }, [query, profileId])
+
+  const handleSnpSearch = useCallback(async (rawQuery: string) => {
+    if (!data) return
+    // Parse comma-separated rsids, normalize to lowercase "rs..." format
+    const rsids = rawQuery
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => /^rs\d+$/.test(s))
+    if (rsids.length === 0) return
+    setSnpSearchPending(true)
+    try {
+      const result = await searchGeneSNPs(data.gene.slug, rsids, profileId)
+      setSnpSearchResults(result)
+    } catch (e) {
+      console.error("SNP search failed:", e)
+    } finally {
+      setSnpSearchPending(false)
+    }
+  }, [data, profileId])
+
+  const handleSnpSearchClear = useCallback(() => {
+    setSnpSearchResults(null)
+  }, [])
 
   const handleLoadMore = useCallback(async () => {
     if (!data) return
@@ -458,13 +539,17 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
 
           {/* SNP Table */}
           <SNPTable
-            snps={allSNPs}
-            genotypes={allGenotypes}
+            snps={snpSearchResults ? snpSearchResults.snps : allSNPs}
+            genotypes={snpSearchResults ? snpSearchResults.genotypes : allGenotypes}
             ethnicityKey={ethnicityKey}
-            totalCount={data.snpPage.count}
+            totalCount={snpSearchResults ? snpSearchResults.snps.length : data.snpPage.count}
             onLoadMore={handleLoadMore}
             loadingMore={loadingMore}
             onSelectSNP={setSelectedSnpRsid}
+            onSnpSearch={handleSnpSearch}
+            onSnpSearchClear={handleSnpSearchClear}
+            snpSearchActive={snpSearchResults !== null}
+            snpSearchPending={snpSearchPending}
           />
 
           {/* Gene info sections */}
@@ -484,6 +569,47 @@ export function GeneDetailPanel({ profileId, ethnicity }: GeneDetailPanelProps) 
           </div>
         </div>
       )}
+
+      {/* SNP Search */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-sm font-semibold text-foreground">SNP Search</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Enter an rsID (e.g. rs429358) to view its detail page
+          </p>
+        </div>
+        <div className="p-5">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={snpDirectQuery}
+                onChange={(e) => setSnpDirectQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    const rsid = snpDirectQuery.trim().toLowerCase()
+                    if (/^rs\d+$/.test(rsid)) setSelectedSnpRsid(rsid)
+                  }
+                }}
+                placeholder="Search rsID…"
+                className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <button
+              onClick={() => {
+                const rsid = snpDirectQuery.trim().toLowerCase()
+                if (/^rs\d+$/.test(rsid)) setSelectedSnpRsid(rsid)
+              }}
+              disabled={!/^rs\d+$/.test(snpDirectQuery.trim().toLowerCase())}
+              className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <Search className="w-4 h-4" />
+              Search
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
