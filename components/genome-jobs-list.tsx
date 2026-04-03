@@ -1,9 +1,9 @@
 "use client"
 
 import { useState, useEffect, useTransition } from "react"
-import { RefreshCw, CheckCircle2, XCircle, Clock, Dna, ChevronDown, ChevronUp } from "lucide-react"
+import { RefreshCw, CheckCircle2, XCircle, Clock, Dna, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getGenomeJobs, type GenomeFileJob } from "@/actions/genome"
+import { getGenomeJobs, getGenomeDownloadUrl, type GenomeFileJob } from "@/actions/genome"
 
 interface GenomeJobsListProps {
   profileId: string
@@ -124,6 +124,25 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
   const [jobs, setJobs] = useState<GenomeFileJob[]>(initialJobs)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  async function handleDownload() {
+    setDownloading(true)
+    setDownloadError(null)
+    try {
+      const url = await getGenomeDownloadUrl(profileId)
+      if (!url) {
+        setDownloadError("No genome file available for download.")
+        return
+      }
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch {
+      setDownloadError("Failed to get download link. Please try again.")
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   function refresh() {
     startTransition(async () => {
@@ -191,6 +210,18 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
           <span className="text-xs text-muted-foreground">
             {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
+          {processedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="h-7 px-2 text-xs gap-1.5"
+            >
+              <Download className={`w-3 h-3 ${downloading ? "animate-pulse" : ""}`} />
+              {downloading ? "Getting link…" : "Download Raw"}
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -202,6 +233,9 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
             Refresh
           </Button>
         </div>
+        {downloadError && (
+          <p className="text-xs text-destructive mt-1 text-right">{downloadError}</p>
+        )}
       </div>
 
       {/* Job rows */}
