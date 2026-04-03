@@ -104,6 +104,28 @@ export async function createGenomeFileJob(
 }
 
 /**
+ * Get a presigned download URL for the full genome (imputed VCF) file associated with a profile.
+ * Returns the URL string, or null if not found / archived.
+ */
+export async function getFullGenomeDownloadUrl(profileId: string): Promise<string | null> {
+  const token = await getAccessToken()
+  const res = await fetch(
+    `${BASE_URL}/service/b2b-integrations/genome-file/full-genome-download/profile/${profileId}/`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    }
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error("Failed to get full genome download URL")
+  const data: { download_url: string } = await res.json()
+  return data.download_url
+}
+
+/**
  * Get a presigned download URL for the genome file associated with a profile.
  * Returns the URL string, or null if not found.
  */

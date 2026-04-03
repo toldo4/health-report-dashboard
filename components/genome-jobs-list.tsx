@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react"
 import { RefreshCw, CheckCircle2, XCircle, Clock, Dna, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getGenomeJobs, getGenomeDownloadUrl, type GenomeFileJob } from "@/actions/genome"
+import { getGenomeJobs, getGenomeDownloadUrl, getFullGenomeDownloadUrl, type GenomeFileJob } from "@/actions/genome"
 
 interface GenomeJobsListProps {
   profileId: string
@@ -125,6 +125,7 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [downloading, setDownloading] = useState(false)
+  const [downloadingFull, setDownloadingFull] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   async function handleDownload() {
@@ -141,6 +142,23 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
       setDownloadError("Failed to get download link. Please try again.")
     } finally {
       setDownloading(false)
+    }
+  }
+
+  async function handleFullDownload() {
+    setDownloadingFull(true)
+    setDownloadError(null)
+    try {
+      const url = await getFullGenomeDownloadUrl(profileId)
+      if (!url) {
+        setDownloadError("Full genome file not available. It may have been archived after 14 days.")
+        return
+      }
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch {
+      setDownloadError("Failed to get full genome download link. Please try again.")
+    } finally {
+      setDownloadingFull(false)
     }
   }
 
@@ -211,16 +229,28 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
             {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </span>
           {processedCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownload}
-              disabled={downloading}
-              className="h-7 px-2 text-xs gap-1.5"
-            >
-              <Download className={`w-3 h-3 ${downloading ? "animate-pulse" : ""}`} />
-              {downloading ? "Getting link…" : "Download Raw"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                disabled={downloading}
+                className="h-7 px-2 text-xs gap-1.5"
+              >
+                <Download className={`w-3 h-3 ${downloading ? "animate-pulse" : ""}`} />
+                {downloading ? "Getting link…" : "Download Raw"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleFullDownload}
+                disabled={downloadingFull}
+                className="h-7 px-2 text-xs gap-1.5"
+              >
+                <Download className={`w-3 h-3 ${downloadingFull ? "animate-pulse" : ""}`} />
+                {downloadingFull ? "Getting link…" : "Download Full Genome"}
+              </Button>
+            </>
           )}
           <Button
             variant="ghost"
