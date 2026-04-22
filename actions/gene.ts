@@ -263,6 +263,37 @@ export async function loadSNPPageData(
   return { snp, genotype: genotypes[0] ?? null }
 }
 
+export async function getMultiProfileGenotypes(
+  profileIds: string[],
+  rsids: string[]
+): Promise<{ profileId: string; genotypes: SNPGenotype[] }[]> {
+  if (profileIds.length === 0 || rsids.length === 0) return []
+  const token = await getAccessToken()
+
+  return Promise.all(
+    profileIds.map(async (profileId) => {
+      const chunks: string[][] = []
+      for (let i = 0; i < rsids.length; i += 75) {
+        chunks.push(rsids.slice(i, i + 75))
+      }
+      const results = await Promise.all(
+        chunks.map(async (chunk) => {
+          const res = await fetch(
+            `${B2B}/genotype/?profile_id=${profileId}&rsid=${chunk.join(",")}`,
+            {
+              headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+              cache: "no-store",
+            }
+          )
+          if (!res.ok) return []
+          return res.json() as Promise<SNPGenotype[]>
+        })
+      )
+      return { profileId, genotypes: results.flat() }
+    })
+  )
+}
+
 export async function searchGeneSNPs(
   geneSlug: string,
   rsids: string[],

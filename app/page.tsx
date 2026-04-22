@@ -4,7 +4,7 @@ import { getProfiles } from "@/actions/profile"
 import { CreateProfileDialog } from "@/components/create-profile-dialog"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { DeleteProfileButton } from "@/components/delete-profile-button"
-import { BookOpen } from "lucide-react"
+import { BookOpen, FlaskConical } from "lucide-react"
 
 function getInitials(name: string) {
   return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
@@ -21,6 +21,13 @@ export default async function DashboardPage() {
           <p className="text-sm text-muted-foreground mt-0.5">Manage user profiles and genome files.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/prs-report"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <FlaskConical className="w-4 h-4" />
+            PRS Report
+          </Link>
           <Link
             href="/articles"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
