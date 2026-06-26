@@ -6,7 +6,7 @@ import { getProfile } from "@/actions/profile"
 import { getGenomeJobs } from "@/actions/genome"
 import { getAllJobs } from "@/actions/reports"
 import { getDnaKitJobs } from "@/actions/dna-kit"
-import { getOrderRows } from "@/actions/orders"
+import { getOrderRows, getOrders } from "@/actions/orders"
 import { GenomeUpload } from "@/components/genome-upload"
 import { GenomeJobsList } from "@/components/genome-jobs-list"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
@@ -58,14 +58,15 @@ function TabSkeleton() {
 // ─── Per-tab async components ─────────────────────────────────────────────────
 
 async function DnaKitTabContent({ profileId }: { profileId: string }) {
-  const [kitJobs, orderRows] = await Promise.all([
+  const [kitJobs, orderRows, orders] = await Promise.all([
     getDnaKitJobs(profileId).catch(() => []),
     getOrderRows().catch(() => []),
+    getOrders().catch(() => []),
   ])
   return (
     <div className="space-y-6">
       <DnaKitPanel profileId={profileId} initialJobs={kitJobs} />
-      <OrdersPanel profileId={profileId} initialRows={orderRows} />
+      <OrdersPanel profileId={profileId} initialRows={orderRows} initialOrders={orders} />
     </div>
   )
 }

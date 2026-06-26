@@ -168,10 +168,9 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
 
           <div className="space-y-2">
             <Label htmlFor="item">Kit Type</Label>
-            <select id="item" name="item" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" required defaultValue="dna-kit-unbranded-us">
-              <option value="dna-kit">Branded DNA Kit</option>
-              <option value="dna-kit-unbranded-us">Unbranded DNA Kit (US)</option>
-              <option value="dna-kit-unbranded-eu">Unbranded DNA Kit (EU)</option>
+            <select id="item" name="item" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" required defaultValue="dna-kit-unbranded-eu">
+              <option value="dna-kit-unbranded-eu">Unbranded DNA Kit (GSA)</option>
+              <option value="dna-kit-wgs-unbranded">Unbranded DNA Kit (WGS)</option>
             </select>
           </div>
 

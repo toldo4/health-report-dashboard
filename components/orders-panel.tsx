@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useCallback } from "react"
+import { useState, useTransition, useCallback, useMemo } from "react"
 import {
   RefreshCw, Search, Copy, Check, Package, Truck,
   XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
@@ -8,9 +8,10 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { getOrderRows, type OrderRow, type OrderStatus, type SampleStatus } from "@/actions/orders"
+import { getOrderRows, getOrders, type Order, type OrderRow, type OrderStatus, type SampleStatus } from "@/actions/orders"
 import { registerDnaKit } from "@/actions/dna-kit"
 import { CreateOrderDialog } from "./create-order-dialog"
+import { EditOrderDialog } from "./edit-order-dialog"
 
 // ─── Status configs ───────────────────────────────────────────────────────────
 
@@ -100,12 +101,30 @@ function RegisterButton({ sampleId, profileId, onRegistered }: {
   )
 }
 
+// ─── Kit type badge ───────────────────────────────────────────────────────────
+
+function KitTypeBadge({ kitType }: { kitType: string }) {
+  const upper = kitType.toUpperCase()
+  const isWGS = upper.includes("WGS")
+  return (
+    <span className={`inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+      isWGS
+        ? "bg-violet-50 border-violet-200 text-violet-700"
+        : "bg-sky-50 border-sky-200 text-sky-700"
+    }`}>
+      {isWGS ? "WGS" : "GSA"}
+    </span>
+  )
+}
+
 // ─── Table row ────────────────────────────────────────────────────────────────
 
-function OrderTableRow({ row, profileId, onRegistered }: {
+function OrderTableRow({ row, order, profileId, onRegistered, onOrderUpdated }: {
   row: OrderRow
+  order: Order | undefined
   profileId: string
   onRegistered: (sampleId: string) => void
+  onOrderUpdated: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -117,12 +136,19 @@ function OrderTableRow({ row, profileId, onRegistered }: {
   const isRegistered   = !!row.profileId
   const canRegister    = hasSample && !isRegistered && row.orderStatus === "shipped"
 
+  const kitTypes = order?.line_items.map(li => li.kit_type).filter(Boolean) ?? []
+
   return (
     <>
       <tr className="border-b border-border hover:bg-muted/30 transition-colors">
-        {/* Ship to name */}
-        <td className="px-4 py-3 text-sm font-medium text-foreground whitespace-nowrap">
-          {row.shipToName}
+        {/* Ship to name + kit type */}
+        <td className="px-4 py-3 whitespace-nowrap">
+          <p className="text-sm font-medium text-foreground">{row.shipToName}</p>
+          {kitTypes.length > 0 && (
+            <div className="flex items-center gap-1 mt-0.5">
+              {kitTypes.map((kt, i) => <KitTypeBadge key={i} kitType={kt} />)}
+            </div>
+          )}
         </td>
 
         {/* Sample ID */}
@@ -171,6 +197,9 @@ function OrderTableRow({ row, profileId, onRegistered }: {
             )}
             {isRegistered && hasSample && (
               <span className="text-xs text-muted-foreground">Registered</span>
+            )}
+            {row.orderStatus === "error" && order && (
+              <EditOrderDialog order={order} onOrderUpdated={onOrderUpdated} />
             )}
             <button
               onClick={() => setExpanded(v => !v)}
@@ -224,21 +253,30 @@ function OrderTableRow({ row, profileId, onRegistered }: {
 export function OrdersPanel({
   profileId,
   initialRows,
+  initialOrders,
 }: {
   profileId: string
   initialRows: OrderRow[]
+  initialOrders: Order[]
 }) {
   const [rows, setRows]           = useState<OrderRow[]>(initialRows)
+  const [orders, setOrders]       = useState<Order[]>(initialOrders)
   const [search, setSearch]       = useState("")
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set())
 
+  const orderMap = useMemo(
+    () => new Map(orders.map(o => [o.id, o])),
+    [orders]
+  )
+
   const refresh = useCallback(() => {
     startTransition(async () => {
       try {
-        const fresh = await getOrderRows()
-        setRows(fresh)
+        const [freshRows, freshOrders] = await Promise.all([getOrderRows(), getOrders()])
+        setRows(freshRows)
+        setOrders(freshOrders)
         setLastRefresh(new Date())
       } catch { /* silent */ }
     })
@@ -339,8 +377,10 @@ export function OrdersPanel({
                   <OrderTableRow
                     key={`${row.orderId}-${row.sampleId}-${i}`}
                     row={row}
+                    order={orderMap.get(row.orderId)}
                     profileId={profileId}
                     onRegistered={handleRegistered}
+                    onOrderUpdated={refresh}
                   />
                 ))
               )}

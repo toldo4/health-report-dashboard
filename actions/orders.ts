@@ -70,14 +70,22 @@ export interface Order {
   ship_to_name: string
   ship_to_email: string
   ship_to_address: string
+  ship_to_address1?: string
   ship_to_city: string
   ship_to_state: string
   ship_to_country: string
   ship_to_postal_code: string
+  ship_to_company?: string
+  ship_to_contact?: string
+  phone_country_code?: string
   phone_number: string
   shipment_method: string | null
+  preferred_shipping_option?: string
+  coupon?: string
+  channel?: string
+  error?: string
   packages: OrderPackage[]
-  line_items: Array<{ id: string; item: string; quantity: number }>
+  line_items: Array<{ id: string; item: string; kit_type: string; quantity: number }>
 }
 
 // Flattened row for the table — one row per sample
@@ -170,6 +178,24 @@ export async function getOrderRows(): Promise<OrderRow[]> {
   return rows
 }
 
+export interface PatchOrderPayload {
+  channel?: string
+  coupon?: string
+  phone_country_code?: string
+  phone_number?: string
+  ship_to_name?: string
+  ship_to_company?: string
+  ship_to_contact?: string
+  ship_to_address?: string
+  ship_to_address1?: string
+  ship_to_city?: string
+  ship_to_state?: string
+  ship_to_postal_code?: string
+  ship_to_country?: string
+  ship_to_email?: string
+  preferred_shipping_option?: string
+}
+
 // ─── Create a new order ───────────────────────────────────────────────────────
 
 export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
@@ -190,8 +216,28 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
     throw new Error(`Failed to create order (${res.status}): ${text}`)
   }
 
-  // Revalidate the root page (or whichever page holds the orders panel) 
-  // so the table updates immediately
-  revalidatePath("/") 
+  revalidatePath("/")
+  return res.json()
+}
+
+// ─── Patch an order in error status ──────────────────────────────────────────
+
+export async function patchOrder(id: string, payload: PatchOrderPayload): Promise<Order> {
+  const token = await getAccessToken()
+  const res = await fetch(`${B2B}/order/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Failed to update order (${res.status}): ${text}`)
+  }
+  revalidatePath("/")
   return res.json()
 }
