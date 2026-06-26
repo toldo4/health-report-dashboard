@@ -39,6 +39,8 @@ export type DnaKitJobStatus =
   | "failed"
   | "cancelled"
 
+export type KitType = "gsa" | "wgs"
+
 export interface DnaKitJob {
   id: string
   user_id: string
@@ -49,6 +51,8 @@ export interface DnaKitJob {
   received_by_lab_at: string | null
   analyzed_by_lab_at: string | null
   error: string
+  wgs_upgrade: boolean
+  kit_type: KitType
   sample_id: string
   profile_id: string
 }

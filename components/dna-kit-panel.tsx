@@ -84,6 +84,22 @@ function PipelineProgress({ status }: { status: string }) {
   )
 }
 
+// ─── Kit type badge ───────────────────────────────────────────────────────────
+
+function KitTypeBadge({ kitType, wgsUpgrade }: { kitType: string; wgsUpgrade?: boolean }) {
+  const isWGS = kitType === "wgs"
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+      isWGS
+        ? "bg-violet-50 border-violet-200 text-violet-700"
+        : "bg-sky-50 border-sky-200 text-sky-700"
+    }`}>
+      {isWGS ? "WGS" : "GSA"}
+      {wgsUpgrade && <span className="text-[9px] opacity-70">↑</span>}
+    </span>
+  )
+}
+
 // ─── Job row ──────────────────────────────────────────────────────────────────
 
 function KitJobRow({ job }: { job: DnaKitJob }) {
@@ -100,6 +116,7 @@ function KitJobRow({ job }: { job: DnaKitJob }) {
             <span className="font-medium text-foreground font-mono text-xs bg-white/60 px-1.5 py-0.5 rounded border border-black/10">
               {job.sample_id}
             </span>
+            <KitTypeBadge kitType={job.kit_type} wgsUpgrade={job.wgs_upgrade} />
             <span className={`inline-flex items-center gap-1 text-xs font-medium ${cfg.color}`}>
               <Icon className="w-3 h-3" />
               {cfg.label}
@@ -119,6 +136,13 @@ function KitJobRow({ job }: { job: DnaKitJob }) {
         <div className="border-t border-black/5 px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
           <div><p className="text-muted-foreground">Job ID</p><p className="font-mono break-all mt-0.5">{job.id}</p></div>
           <div><p className="text-muted-foreground">Sample ID</p><p className="font-mono mt-0.5">{job.sample_id}</p></div>
+          <div>
+            <p className="text-muted-foreground">Kit Type</p>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <KitTypeBadge kitType={job.kit_type} />
+              {job.wgs_upgrade && <span className="text-muted-foreground">WGS upgrade applied</span>}
+            </div>
+          </div>
           {job.received_by_lab_at  && <div><p className="text-muted-foreground">Received by Lab</p><p className="mt-0.5">{fmt(job.received_by_lab_at)}</p></div>}
           {job.analyzed_by_lab_at  && <div><p className="text-muted-foreground">Analyzed by Lab</p><p className="mt-0.5">{fmt(job.analyzed_by_lab_at)}</p></div>}
           {job.finished_at         && <div><p className="text-muted-foreground">Finished</p><p className="mt-0.5">{fmt(job.finished_at)}</p></div>}

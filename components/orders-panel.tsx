@@ -214,32 +214,83 @@ function OrderTableRow({ row, order, profileId, onRegistered, onOrderUpdated }: 
       {/* Expanded detail row */}
       {expanded && (
         <tr className="border-b border-border bg-muted/20">
-          <td colSpan={5} className="px-4 py-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 text-xs">
-              <div>
-                <p className="text-muted-foreground">Order ID</p>
-                <p className="font-mono break-all mt-0.5">{row.orderId}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Ordered</p>
-                <p className="mt-0.5">{fmt(row.orderCreatedAt)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Country</p>
-                <p className="mt-0.5">{row.shipToCountry}</p>
-              </div>
-              {row.trackingNumber && (
+          <td colSpan={5} className="px-4 py-4">
+            <div className="space-y-3 text-xs">
+
+              {/* Row 1: order meta */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2">
                 <div>
-                  <p className="text-muted-foreground">Tracking</p>
-                  <p className="font-mono mt-0.5">{row.trackingNumber}</p>
+                  <p className="text-muted-foreground">Order ID</p>
+                  <p className="font-mono break-all mt-0.5">{row.orderId}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Ordered</p>
+                  <p className="mt-0.5">{fmt(row.orderCreatedAt)}</p>
+                </div>
+                {order?.shipment_method && (
+                  <div>
+                    <p className="text-muted-foreground">Shipment Method</p>
+                    <p className="mt-0.5">{order.shipment_method}</p>
+                  </div>
+                )}
+                {row.trackingNumber && (
+                  <div>
+                    <p className="text-muted-foreground">Tracking</p>
+                    <p className="font-mono mt-0.5">{row.trackingNumber}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 2: shipping address */}
+              {order && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-2 pt-2 border-t border-border">
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">Ship To</p>
+                    <p className="mt-0.5">{order.ship_to_address}{order.ship_to_address1 ? `, ${order.ship_to_address1}` : ""}</p>
+                    <p>{order.ship_to_city}{order.ship_to_state ? `, ${order.ship_to_state}` : ""} {order.ship_to_postal_code}</p>
+                    <p>{order.ship_to_country}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Email</p>
+                    <p className="mt-0.5 break-all">{order.ship_to_email || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Phone</p>
+                    <p className="mt-0.5">{[order.phone_country_code, order.phone_number].filter(Boolean).join(" ") || "—"}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Row 3: line items */}
+              {order && order.line_items.length > 0 && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-muted-foreground mb-1">Line Items</p>
+                  <div className="flex flex-wrap gap-2">
+                    {order.line_items.map(li => (
+                      <span key={li.id} className="inline-flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1">
+                        <KitTypeBadge kitType={li.kit_type} />
+                        <span className="text-foreground font-mono">{li.item}</span>
+                        <span className="text-muted-foreground">× {li.quantity}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Errors */}
+              {order?.error && (
+                <div className="pt-2 border-t border-border">
+                  <p className="text-muted-foreground">Order Error</p>
+                  <p className="text-red-700 mt-0.5">{order.error}</p>
                 </div>
               )}
               {row.sampleError && (
-                <div className="col-span-2 sm:col-span-4">
+                <div className="pt-2 border-t border-border">
                   <p className="text-muted-foreground">Sample Error</p>
                   <p className="text-red-700 mt-0.5">{row.sampleError}</p>
                 </div>
               )}
+
             </div>
           </td>
         </tr>
