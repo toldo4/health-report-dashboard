@@ -4,7 +4,7 @@ import { useState, useTransition, useCallback, useMemo } from "react"
 import {
   RefreshCw, Search, Copy, Check, Package, Truck,
   XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
-  Dna, CheckCircle2,
+  Dna, CheckCircle2, ChevronLeft, ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -299,6 +299,8 @@ function OrderTableRow({ row, order, profileId, onRegistered, onOrderUpdated }: 
   )
 }
 
+const PAGE_SIZE = 10
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function OrdersPanel({
@@ -313,6 +315,7 @@ export function OrdersPanel({
   const [rows, setRows]           = useState<OrderRow[]>(initialRows)
   const [orders, setOrders]       = useState<Order[]>(initialOrders)
   const [search, setSearch]       = useState("")
+  const [page, setPage]           = useState(1)
   const [isPending, startTransition] = useTransition()
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [registeredIds, setRegisteredIds] = useState<Set<string>>(new Set())
@@ -348,6 +351,12 @@ export function OrdersPanel({
       )
     : rows
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage   = Math.min(page, totalPages)
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pageStart  = filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1
+  const pageEnd    = Math.min(safePage * PAGE_SIZE, filtered.length)
+
   const shipped   = rows.filter(r => r.orderStatus === "shipped").length
   const pending   = rows.filter(r => r.orderStatus === "received" || r.orderStatus === "submitted").length
   const unregistered = rows.filter(r => r.sampleId !== "—" && !r.profileId).length
@@ -375,12 +384,12 @@ export function OrdersPanel({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder="Search orders…"
             className="pl-8 h-8 text-sm"
           />
           {search && (
-            <button onClick={() => setSearch("")}
+            <button onClick={() => { setSearch(""); setPage(1) }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground leading-none text-base">
               ×
             </button>
@@ -424,7 +433,7 @@ export function OrdersPanel({
                   </td>
                 </tr>
               ) : (
-                filtered.map((row, i) => (
+                paginated.map((row, i) => (
                   <OrderTableRow
                     key={`${row.orderId}-${row.sampleId}-${i}`}
                     row={row}
@@ -437,6 +446,34 @@ export function OrdersPanel({
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="px-4 py-3 border-t border-border flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {pageStart}–{pageEnd} of {filtered.length}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline" size="sm"
+              className="h-7 w-7 p-0"
+              disabled={safePage === 1}
+              onClick={() => setPage(p => p - 1)}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </Button>
+            <span className="text-xs text-muted-foreground px-2">{safePage} / {totalPages}</span>
+            <Button
+              variant="outline" size="sm"
+              className="h-7 w-7 p-0"
+              disabled={safePage === totalPages}
+              onClick={() => setPage(p => p + 1)}
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
