@@ -65,6 +65,8 @@ export interface CatalogueItem {
   rules?: ReportMatchRule[]
   showSelection?: boolean
   note?: string
+  /** Extra fields merged into the default pdf_config for this item (e.g. report variant flags). */
+  pdfConfigExtra?: Record<string, unknown>
 }
 
 export interface Bundle {
@@ -124,6 +126,7 @@ export const CATALOGUE: CatalogueItem[] = [
   { id: "medical-overview", label: "Medical Overview Report",          price: 75, type: "simple", jobType: "clinical-overview"  },
   { id: "longevity",        label: "Longevity Screener",               price: 30, type: "simple", jobType: "longevity-screener" },
   { id: "pgx",              label: "Medication Check (PGx)",           price: 25, type: "simple", jobType: "pgx"                },
+  { id: "pgx-dnamind",      label: "DNAmind PGx Report",               price: 25, type: "simple", jobType: "pgx", pdfConfigExtra: { pgx_report: "genomind" }, note: "Genomind" },
   { id: "carrier-status",   label: "Family Planning (Carrier Status)", price: 25, type: "simple", jobType: "carrier-status"     },
   { id: "ancestry",         label: "Ancestry",                         price: 20, type: "simple", jobType: "ancestry", ancestryType: "ancestry" },
   { id: "mtdna",            label: "mtDNA Ancestry",                   price: 20, type: "simple", jobType: "ancestry", ancestryType: "mtdna"   },

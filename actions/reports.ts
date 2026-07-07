@@ -235,7 +235,9 @@ export async function generateItem(
     const payload: any = {
       profile_id: profileId,
       desired_status: desiredStatus,
-      pdf_config: DEFAULT_PDF_CONFIG,
+      pdf_config: item.pdfConfigExtra
+        ? { ...DEFAULT_PDF_CONFIG, ...item.pdfConfigExtra }
+        : DEFAULT_PDF_CONFIG,
     }
     if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
     if (item.ancestryType) payload.ancestry_type = item.ancestryType
@@ -287,7 +289,9 @@ export async function generateBundle(
           const payload: any = {
             profile_id: profileId,
             desired_status: desiredStatus,
-            pdf_config: DEFAULT_PDF_CONFIG,
+            pdf_config: item.pdfConfigExtra
+              ? { ...DEFAULT_PDF_CONFIG, ...item.pdfConfigExtra }
+              : DEFAULT_PDF_CONFIG,
           }
           if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
           if (item.ancestryType) payload.ancestry_type = item.ancestryType
