@@ -814,8 +814,8 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 const PDF_DEFAULTS: Record<keyof PdfCompanyProfileOverride, string> = {
-  company_name:      "NutriGenix",
-  professional_name: "Milad Mansoori\nNutrigenomics Specialist",
+  professional_name: "NutriGenix",
+  company_name:      "Reviewed by: Milad Mansoori, Nutrigenomics Specialist",
   email:             "info@nutrigenix.ae",
   phone:             "",
   website:           "",
@@ -824,8 +824,8 @@ const PDF_DEFAULTS: Record<keyof PdfCompanyProfileOverride, string> = {
 }
 
 const PDF_CONFIG_FIELDS: Array<{ key: keyof PdfCompanyProfileOverride; label: string; placeholder?: string }> = [
-  { key: "company_name",      label: "Report provided by" },
-  { key: "professional_name", label: "Reviewed by", placeholder: "Name\nTitle (one per line)" },
+  { key: "professional_name", label: "Report provided by" },
+  { key: "company_name",      label: "Reviewed by", placeholder: "Reviewed by:\nName\nTitle" },
   { key: "email",             label: "Email" },
   { key: "phone",             label: "Phone" },
   { key: "website",           label: "Website" },
@@ -949,7 +949,7 @@ export function ReportJobsPanel({
             {PDF_CONFIG_FIELDS.map(({ key, label, placeholder }) => (
               <div key={key} className="space-y-1">
                 <label className="text-xs text-muted-foreground">{label}</label>
-                {key === "professional_name" ? (
+                {key === "company_name" ? (
                   <textarea
                     value={pdfOverride[key] ?? ""}
                     onChange={e => updateField(key, e.target.value)}

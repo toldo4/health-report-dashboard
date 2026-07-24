@@ -26,8 +26,9 @@ const B2B = `${BASE_URL}/service/b2b-integrations`
 const DEFAULT_PDF_CONFIG = {
   white_labelled: true,
   company_profile: {
-    company_name:      "NutriGenix",
-    professional_name: "Milad Mansoori\nNutrigenomics Specialist",
+    // professional_name renders as the bold heading; company_name as the gray subtitle
+    professional_name: "NutriGenix",
+    company_name:      "Reviewed by: Milad Mansoori | Nutrigenomics Specialist",
     email:             "info@nutrigenix.ae",
     address:           "Meydan Free Zone, Dubai, UAE",
     logo:              "https://health-report-dashboard.vercel.app/logo.png",
