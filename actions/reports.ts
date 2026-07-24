@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { PATIENT_PDF_CONFIGS } from "@/lib/patient-pdf-configs"
 import {
   CATALOGUE,
   BUNDLES,
@@ -25,12 +26,20 @@ const B2B = `${BASE_URL}/service/b2b-integrations`
 const DEFAULT_PDF_CONFIG = {
   white_labelled: true,
   company_profile: {
-    professional_name: "NutriGenix",
+    professional_name: "Dr. Milad Mansoori",
     company_name: "NutriGenix",
-    email: "milad.mansoori@nutrigenix.ae",
+    email: "info@nutrigenix.ae",
     address: "Meydan, Dubai.",
     logo: "https://health-report-dashboard.vercel.app/logo.png",
   },
+}
+
+function getPdfConfig(profileId: string, extra?: object) {
+  const override = PATIENT_PDF_CONFIGS[profileId]
+  const base = override
+    ? { ...DEFAULT_PDF_CONFIG, company_profile: { ...DEFAULT_PDF_CONFIG.company_profile, ...override } }
+    : DEFAULT_PDF_CONFIG
+  return extra ? { ...base, ...extra } : base
 }
 
 const SIMPLE_ENDPOINTS: Record<SimpleJobType, string> = {
@@ -235,9 +244,7 @@ export async function generateItem(
     const payload: any = {
       profile_id: profileId,
       desired_status: desiredStatus,
-      pdf_config: item.pdfConfigExtra
-        ? { ...DEFAULT_PDF_CONFIG, ...item.pdfConfigExtra }
-        : DEFAULT_PDF_CONFIG,
+      pdf_config: getPdfConfig(profileId, item.pdfConfigExtra),
     }
     if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
     if (item.ancestryType) payload.ancestry_type = item.ancestryType
@@ -252,7 +259,7 @@ export async function generateItem(
       profile_id: profileId,
       report_ids: active.map(s => s.id),
       desired_status: desiredStatus,
-      pdf_config: DEFAULT_PDF_CONFIG,
+      pdf_config: getPdfConfig(profileId),
     })
   }
 
@@ -289,9 +296,7 @@ export async function generateBundle(
           const payload: any = {
             profile_id: profileId,
             desired_status: desiredStatus,
-            pdf_config: item.pdfConfigExtra
-              ? { ...DEFAULT_PDF_CONFIG, ...item.pdfConfigExtra }
-              : DEFAULT_PDF_CONFIG,
+            pdf_config: getPdfConfig(profileId, item.pdfConfigExtra),
           }
           if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
           if (item.ancestryType) payload.ancestry_type = item.ancestryType
@@ -303,7 +308,7 @@ export async function generateBundle(
             profile_id: profileId,
             report_ids: active.map(s => s.id),
             desired_status: desiredStatus,
-            pdf_config: DEFAULT_PDF_CONFIG,
+            pdf_config: getPdfConfig(profileId),
           })
         }
         succeeded.push(item.label)
@@ -339,7 +344,7 @@ export async function createBulkReportJobs(
     profile_id: profileId,
     report_ids: reportIds,
     desired_status: desiredStatus,
-    pdf_config: DEFAULT_PDF_CONFIG,
+    pdf_config: getPdfConfig(profileId),
   })
   revalidatePath(`/profiles/${profileId}`)
   return result
