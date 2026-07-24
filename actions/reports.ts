@@ -34,11 +34,16 @@ const DEFAULT_PDF_CONFIG = {
   },
 }
 
-function getPdfConfig(profileId: string, extra?: object) {
-  const override = PATIENT_PDF_CONFIGS[profileId]
-  const base = override
-    ? { ...DEFAULT_PDF_CONFIG, company_profile: { ...DEFAULT_PDF_CONFIG.company_profile, ...override } }
-    : DEFAULT_PDF_CONFIG
+export type PdfCompanyProfileOverride = Partial<typeof DEFAULT_PDF_CONFIG.company_profile>
+
+function getPdfConfig(profileId: string, extra?: object, uiOverride?: PdfCompanyProfileOverride) {
+  const staticOverride = PATIENT_PDF_CONFIGS[profileId]
+  const company_profile = {
+    ...DEFAULT_PDF_CONFIG.company_profile,
+    ...(staticOverride ?? {}),
+    ...(uiOverride ?? {}),
+  }
+  const base = { ...DEFAULT_PDF_CONFIG, company_profile }
   return extra ? { ...base, ...extra } : base
 }
 
@@ -235,6 +240,7 @@ export async function generateItem(
   itemId: string,
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
   selection: ReportSelection = "all",
+  pdfOverride?: PdfCompanyProfileOverride,
 ): Promise<void> {
   const item = CATALOGUE.find(c => c.id === itemId)
   if (!item) throw new Error(`Unknown catalogue item: ${itemId}`)
@@ -244,7 +250,7 @@ export async function generateItem(
     const payload: any = {
       profile_id: profileId,
       desired_status: desiredStatus,
-      pdf_config: getPdfConfig(profileId, item.pdfConfigExtra),
+      pdf_config: getPdfConfig(profileId, item.pdfConfigExtra, pdfOverride),
     }
     if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
     if (item.ancestryType) payload.ancestry_type = item.ancestryType
@@ -259,7 +265,7 @@ export async function generateItem(
       profile_id: profileId,
       report_ids: active.map(s => s.id),
       desired_status: desiredStatus,
-      pdf_config: getPdfConfig(profileId),
+      pdf_config: getPdfConfig(profileId, undefined, pdfOverride),
     })
   }
 
@@ -270,6 +276,7 @@ export async function generateBundle(
   profileId: string,
   bundleId: string,
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
+  pdfOverride?: PdfCompanyProfileOverride,
 ): Promise<{ succeeded: string[]; failed: Array<{ label: string; error: string }> }> {
   const bundle = BUNDLES.find(b => b.id === bundleId)
   if (!bundle) throw new Error(`Unknown bundle: ${bundleId}`)
@@ -296,7 +303,7 @@ export async function generateBundle(
           const payload: any = {
             profile_id: profileId,
             desired_status: desiredStatus,
-            pdf_config: getPdfConfig(profileId, item.pdfConfigExtra),
+            pdf_config: getPdfConfig(profileId, item.pdfConfigExtra, pdfOverride),
           }
           if (item.jobType === "bio-chemistry") payload.bio_chemistry_report_id = item.id
           if (item.ancestryType) payload.ancestry_type = item.ancestryType
@@ -308,7 +315,7 @@ export async function generateBundle(
             profile_id: profileId,
             report_ids: active.map(s => s.id),
             desired_status: desiredStatus,
-            pdf_config: getPdfConfig(profileId),
+            pdf_config: getPdfConfig(profileId, undefined, pdfOverride),
           })
         }
         succeeded.push(item.label)
@@ -338,13 +345,14 @@ export async function createBulkReportJobs(
   profileId: string,
   reportIds: string[],
   desiredStatus: "report_generated" | "pdf_generated" = "pdf_generated",
+  pdfOverride?: PdfCompanyProfileOverride,
 ) {
   const token = await getAccessToken()
   const result = await apiPost(`${B2B}/report-job/bulk-create/`, token, {
     profile_id: profileId,
     report_ids: reportIds,
     desired_status: desiredStatus,
-    pdf_config: getPdfConfig(profileId),
+    pdf_config: getPdfConfig(profileId, undefined, pdfOverride),
   })
   revalidatePath(`/profiles/${profileId}`)
   return result

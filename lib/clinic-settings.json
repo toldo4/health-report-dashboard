@@ -1,0 +1,17 @@
+{
+  "clinics": [
+    { "id": "neotrium", "name": "Neotrium" }
+  ],
+  "profiles": {
+    "Farah Banani":         "neotrium",
+    "Abdel Halim Muwahid":  "neotrium",
+    "Esraa Ziadeh":         "neotrium",
+    "Amira Omotoy":         "neotrium",
+    "Tony Harkomal":        "neotrium",
+    "Rosantina Saraswait":  "neotrium",
+    "Mohamed Ismail":       "neotrium",
+    "Holly Spence":         "neotrium",
+    "Mareena Barria":       "neotrium",
+    "Kevin McArdle":        "neotrium"
+  }
+}

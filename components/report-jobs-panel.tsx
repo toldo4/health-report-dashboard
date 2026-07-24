@@ -5,7 +5,7 @@ import {
   Download, RefreshCw, Search, Plus, CheckCircle2, XCircle,
   Clock, Loader2, ChevronDown, ChevronUp, AlertTriangle,
   ChevronLeft, ChevronRight, Zap, Package, FileText, Sparkles,
-  Filter
+  Filter, Settings2, RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,7 +23,8 @@ import {
   generateBundle,
   searchReports,
   createBulkReportJobs,
-  type ReportSelection
+  type ReportSelection,
+  type PdfCompanyProfileOverride,
 } from "@/actions/reports"
 import {
   CATALOGUE,
@@ -261,7 +262,11 @@ function Pagination({ page, totalPages, total, pageSize, onPage }: {
 
 // ─── Catalogue tab ────────────────────────────────────────────────────────────
 
-function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerated: () => void }) {
+function CatalogueTab({ profileId, onGenerated, pdfOverride }: {
+  profileId: string
+  onGenerated: () => void
+  pdfOverride: PdfCompanyProfileOverride
+}) {
   const [loadingItem, setLoadingItem] = useState<string | null>(null)
   const [loadingBundle, setLoadingBundle] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -305,7 +310,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     try {
       const item = CATALOGUE.find(c => c.id === itemId)
       const selection: ReportSelection = item?.showSelection ? (selections[itemId] ?? "all") : "all"
-      await generateItem(profileId, itemId, "pdf_generated", selection)
+      await generateItem(profileId, itemId, "pdf_generated", selection, pdfOverride)
       onGenerated()
     } catch (e) {
       setErrors(prev => ({ ...prev, [itemId]: e instanceof Error ? e.message : "Failed" }))
@@ -318,7 +323,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     setLoadingBundle(bundleId)
     setBundleResults(r => ({ ...r, [bundleId]: null }))
     try {
-      const result = await generateBundle(profileId, bundleId, "pdf_generated")
+      const result = await generateBundle(profileId, bundleId, "pdf_generated", pdfOverride)
       setBundleResults(r => ({ ...r, [bundleId]: result }))
       onGenerated()
     } catch (e) {
@@ -332,7 +337,7 @@ function CatalogueTab({ profileId, onGenerated }: { profileId: string; onGenerat
     if (!selectedReports.length) return
     setCustomLoading(true)
     try {
-      await createBulkReportJobs(profileId, selectedReports.map(r => r.id))
+      await createBulkReportJobs(profileId, selectedReports.map(r => r.id), "pdf_generated", pdfOverride)
       setSelectedReports([])
       setSearchQuery("")
       setSearchResults([])
@@ -808,6 +813,21 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
+const PDF_DEFAULTS: Required<PdfCompanyProfileOverride> = {
+  professional_name: "Dr. Milad Mansoori",
+  company_name: "NutriGenix",
+  email: "info@nutrigenix.ae",
+  address: "Meydan, Dubai.",
+  logo: "https://health-report-dashboard.vercel.app/logo.png",
+}
+
+const PDF_CONFIG_FIELDS: Array<{ key: keyof PdfCompanyProfileOverride; label: string }> = [
+  { key: "company_name",      label: "Report provided by" },
+  { key: "professional_name", label: "Reviewed by" },
+  { key: "email",             label: "Email" },
+  { key: "address",           label: "Address" },
+]
+
 export function ReportJobsPanel({
   profileId,
   initialJobs,
@@ -824,6 +844,33 @@ export function ReportJobsPanel({
     totalPages: Math.max(1, Math.ceil(initialJobs.length / PAGE_SIZE)),
   })
   const [, startTransition] = useTransition()
+  const [pdfOverride, setPdfOverride] = useState<PdfCompanyProfileOverride>({})
+  const [showPdfConfig, setShowPdfConfig] = useState(false)
+
+  // Load stored override on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`pdf-config-${profileId}`)
+      if (stored) setPdfOverride(JSON.parse(stored))
+    } catch {}
+  }, [profileId])
+
+  function updateField(key: keyof PdfCompanyProfileOverride, value: string) {
+    setPdfOverride(prev => {
+      const next = { ...prev }
+      if (value.trim()) next[key] = value
+      else delete next[key]
+      try { localStorage.setItem(`pdf-config-${profileId}`, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  function resetOverride() {
+    setPdfOverride({})
+    try { localStorage.removeItem(`pdf-config-${profileId}`) } catch {}
+  }
+
+  const hasOverride = Object.keys(pdfOverride).length > 0
 
   function refreshJobs() {
     startTransition(async () => {
@@ -863,12 +910,59 @@ export function ReportJobsPanel({
             </button>
           ))}
         </div>
+
+        <button
+          onClick={() => setShowPdfConfig(v => !v)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+            showPdfConfig
+              ? "bg-muted border-border text-foreground"
+              : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
+          }`}
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          PDF Config
+          {hasOverride && (
+            <span className="ml-1 bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">custom</span>
+          )}
+        </button>
       </div>
+
+      {showPdfConfig && (
+        <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-foreground">PDF Config for this patient</p>
+            {hasOverride && (
+              <button
+                onClick={resetOverride}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset to default
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {PDF_CONFIG_FIELDS.map(({ key, label }) => (
+              <div key={key} className="space-y-1">
+                <label className="text-xs text-muted-foreground">{label}</label>
+                <Input
+                  value={pdfOverride[key] ?? ""}
+                  onChange={e => updateField(key, e.target.value)}
+                  placeholder={PDF_DEFAULTS[key]}
+                  className="h-8 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">Saved in this browser. Empty fields use the default value.</p>
+        </div>
+      )}
 
       <div className="min-h-[400px]">
         {activeTab === "catalogue" && (
           <CatalogueTab
             profileId={profileId}
+            pdfOverride={pdfOverride}
             onGenerated={() => {
               refreshJobs()
               setActiveTab("jobs")
