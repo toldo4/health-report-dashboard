@@ -813,18 +813,22 @@ function JobsTab({ profileId, initialData }: { profileId: string; initialData: P
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-const PDF_DEFAULTS: Required<PdfCompanyProfileOverride> = {
-  professional_name: "Dr. Milad Mansoori",
-  company_name: "NutriGenix",
-  email: "info@nutrigenix.ae",
-  address: "Meydan, Dubai.",
-  logo: "https://health-report-dashboard.vercel.app/logo.png",
+const PDF_DEFAULTS: Record<keyof PdfCompanyProfileOverride, string> = {
+  company_name:      "NutriGenix",
+  professional_name: "Milad Mansoori\nNutrigenomics Specialist",
+  email:             "info@nutrigenix.ae",
+  phone:             "",
+  website:           "",
+  address:           "Meydan Free Zone, Dubai, UAE",
+  logo:              "https://health-report-dashboard.vercel.app/logo.png",
 }
 
-const PDF_CONFIG_FIELDS: Array<{ key: keyof PdfCompanyProfileOverride; label: string }> = [
+const PDF_CONFIG_FIELDS: Array<{ key: keyof PdfCompanyProfileOverride; label: string; placeholder?: string }> = [
   { key: "company_name",      label: "Report provided by" },
-  { key: "professional_name", label: "Reviewed by" },
+  { key: "professional_name", label: "Reviewed by", placeholder: "Name\nTitle (one per line)" },
   { key: "email",             label: "Email" },
+  { key: "phone",             label: "Phone" },
+  { key: "website",           label: "Website" },
   { key: "address",           label: "Address" },
 ]
 
@@ -942,15 +946,25 @@ export function ReportJobsPanel({
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {PDF_CONFIG_FIELDS.map(({ key, label }) => (
+            {PDF_CONFIG_FIELDS.map(({ key, label, placeholder }) => (
               <div key={key} className="space-y-1">
                 <label className="text-xs text-muted-foreground">{label}</label>
-                <Input
-                  value={pdfOverride[key] ?? ""}
-                  onChange={e => updateField(key, e.target.value)}
-                  placeholder={PDF_DEFAULTS[key]}
-                  className="h-8 text-sm"
-                />
+                {key === "professional_name" ? (
+                  <textarea
+                    value={pdfOverride[key] ?? ""}
+                    onChange={e => updateField(key, e.target.value)}
+                    placeholder={placeholder ?? PDF_DEFAULTS[key]}
+                    rows={2}
+                    className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                  />
+                ) : (
+                  <Input
+                    value={pdfOverride[key] ?? ""}
+                    onChange={e => updateField(key, e.target.value)}
+                    placeholder={placeholder ?? PDF_DEFAULTS[key]}
+                    className="h-8 text-sm"
+                  />
+                )}
               </div>
             ))}
           </div>

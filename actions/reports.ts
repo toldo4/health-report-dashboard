@@ -26,15 +26,23 @@ const B2B = `${BASE_URL}/service/b2b-integrations`
 const DEFAULT_PDF_CONFIG = {
   white_labelled: true,
   company_profile: {
-    professional_name: "Dr. Milad Mansoori",
-    company_name: "NutriGenix",
-    email: "info@nutrigenix.ae",
-    address: "Meydan, Dubai.",
-    logo: "https://health-report-dashboard.vercel.app/logo.png",
+    company_name:      "NutriGenix",
+    professional_name: "Milad Mansoori\nNutrigenomics Specialist",
+    email:             "info@nutrigenix.ae",
+    address:           "Meydan Free Zone, Dubai, UAE",
+    logo:              "https://health-report-dashboard.vercel.app/logo.png",
   },
 }
 
-export type PdfCompanyProfileOverride = Partial<typeof DEFAULT_PDF_CONFIG.company_profile>
+export type PdfCompanyProfileOverride = Partial<{
+  company_name:      string
+  professional_name: string
+  email:             string
+  phone:             string
+  website:           string
+  address:           string
+  logo:              string
+}>
 
 function getPdfConfig(profileId: string, extra?: object, uiOverride?: PdfCompanyProfileOverride) {
   const staticOverride = PATIENT_PDF_CONFIGS[profileId]

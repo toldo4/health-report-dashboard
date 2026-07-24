@@ -9,11 +9,13 @@
 export const PATIENT_PDF_CONFIGS: Record<
   string,
   Partial<{
+    company_name:      string
     professional_name: string
-    company_name: string
-    email: string
-    address: string
-    logo: string
+    email:             string
+    phone:             string
+    website:           string
+    address:           string
+    logo:              string
   }>
 > = {
   // "profile-id": { professional_name: "Dr. Other Doctor" },
