@@ -5,9 +5,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { createOrder, type CreateOrderPayload } from "@/actions/orders"
-import { Plus, Loader2 } from "lucide-react"
+import { createOrder, type CreateOrderPayload, type OrderLineItemInput } from "@/actions/orders"
+import { Plus, Loader2, X } from "lucide-react"
 import { Country, State } from "country-state-city"
+
+const KIT_OPTIONS = [
+  { value: "dna-kit-unbranded-eu", label: "Unbranded DNA Kit (GSA)" },
+  { value: "dna-kit-wgs-unbranded", label: "Unbranded DNA Kit (WGS)" },
+]
+
+const SELECT_CLASS =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+
+const EMPTY_LINE_ITEMS: OrderLineItemInput[] = [{ item: KIT_OPTIONS[0].value, quantity: 1 }]
 
 export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => void }) {
   const [open, setOpen] = useState(false)
@@ -16,7 +26,16 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
 
   // Default to US (isoCode: "US")
   const [selectedCountryCode, setSelectedCountryCode] = useState("US")
-  
+
+  // One row per kit type — all shipped together to the address below
+  const [lineItems, setLineItems] = useState<OrderLineItemInput[]>(EMPTY_LINE_ITEMS)
+
+  function updateLineItem(index: number, patch: Partial<OrderLineItemInput>) {
+    setLineItems(items => items.map((li, i) => (i === index ? { ...li, ...patch } : li)))
+  }
+
+  const totalKits = lineItems.reduce((sum, li) => sum + (li.quantity || 0), 0)
+
   // Get all countries for the dropdown
   const countries = useMemo(() => Country.getAllCountries(), [])
   
@@ -54,6 +73,20 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
       return
     }
 
+    if (lineItems.some(li => !Number.isInteger(li.quantity) || li.quantity < 1)) {
+      setError("Every kit line must have a quantity of at least 1.")
+      setLoading(false)
+      return
+    }
+
+    // Collapse repeated kit types into a single line item so the API gets one entry per item
+    const mergedLineItems = Object.values(
+      lineItems.reduce<Record<string, OrderLineItemInput>>((acc, li) => {
+        acc[li.item] = { item: li.item, quantity: (acc[li.item]?.quantity ?? 0) + li.quantity }
+        return acc
+      }, {})
+    )
+
     const payload: CreateOrderPayload = {
       ship_to_name: fd.get("ship_to_name") as string,
       ship_to_email: fd.get("ship_to_email") as string,
@@ -63,12 +96,7 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
       ship_to_state: state, // This will naturally be the 2-letter code if selected from our dropdown
       ship_to_postal_code: fd.get("ship_to_postal_code") as string,
       ship_to_country: countryName, // API expects the full name
-      line_items: [
-        {
-          item: fd.get("item") as string,
-          quantity: 1, 
-        }
-      ]
+      line_items: mergedLineItems,
     }
 
     try {
@@ -76,6 +104,7 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
       setOpen(false)
       // Reset form state on successful close
       setSelectedCountryCode("US")
+      setLineItems(EMPTY_LINE_ITEMS)
       if (onOrderCreated) onOrderCreated()
     } catch (err: any) {
       setError(err.message || "Failed to create order")
@@ -167,11 +196,66 @@ export function CreateOrderDialog({ onOrderCreated }: { onOrderCreated?: () => v
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="item">Kit Type</Label>
-            <select id="item" name="item" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" required defaultValue="dna-kit-unbranded-eu">
-              <option value="dna-kit-unbranded-eu">Unbranded DNA Kit (GSA)</option>
-              <option value="dna-kit-wgs-unbranded">Unbranded DNA Kit (WGS)</option>
-            </select>
+            <div className="flex items-center justify-between">
+              <Label>Kits</Label>
+              <span className="text-xs text-muted-foreground">
+                {totalKits} kit{totalKits === 1 ? "" : "s"} in this order
+              </span>
+            </div>
+
+            {lineItems.map((li, index) => (
+              <div key={index} className="flex items-end gap-2">
+                <div className="flex-1 space-y-2">
+                  {index === 0 && <Label htmlFor={`item-${index}`} className="text-xs text-muted-foreground">Kit Type</Label>}
+                  <select
+                    id={`item-${index}`}
+                    value={li.item}
+                    onChange={e => updateLineItem(index, { item: e.target.value })}
+                    className={SELECT_CLASS}
+                    required
+                  >
+                    {KIT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-24 space-y-2">
+                  {index === 0 && <Label htmlFor={`quantity-${index}`} className="text-xs text-muted-foreground">Quantity</Label>}
+                  <Input
+                    id={`quantity-${index}`}
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={Number.isNaN(li.quantity) ? "" : li.quantity}
+                    onChange={e => updateLineItem(index, { quantity: e.target.valueAsNumber })}
+                    required
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  aria-label="Remove kit line"
+                  disabled={lineItems.length === 1}
+                  onClick={() => setLineItems(items => items.filter((_, i) => i !== index))}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setLineItems(items => [...items, { item: KIT_OPTIONS[0].value, quantity: 1 }])}
+            >
+              <Plus className="w-3.5 h-3.5" /> Add kit type
+            </Button>
           </div>
 
           {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
