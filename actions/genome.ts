@@ -148,6 +148,29 @@ export async function getGenomeDownloadUrl(profileId: string): Promise<string | 
 }
 
 /**
+ * Get presigned download URLs for the paired-end WGS FASTQ files (R1 + R2) associated with a profile.
+ * Only available for genome files produced from WGS kits or raw paired-end FASTQ uploads.
+ * Returns the URLs, or null if not WGS-compatible / not yet available / archived to cold storage.
+ */
+export async function getWgsFastqDownloadUrls(profileId: string): Promise<string[] | null> {
+  const token = await getAccessToken()
+  const res = await fetch(
+    `${BASE_URL}/service/b2b-integrations/genome-file/wgs-download/profile/${profileId}/`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    }
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error("Failed to get WGS FASTQ download URLs")
+  const data: { download_urls: string[] } = await res.json()
+  return data.download_urls
+}
+
+/**
  * Fetch all genome file jobs for a profile.
  */
 export async function getGenomeJobs(profileId: string): Promise<GenomeFileJob[]> {

@@ -3,7 +3,13 @@
 import { useState, useEffect, useTransition } from "react"
 import { RefreshCw, CheckCircle2, XCircle, Clock, Dna, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getGenomeJobs, getGenomeDownloadUrl, getFullGenomeDownloadUrl, type GenomeFileJob } from "@/actions/genome"
+import {
+  getGenomeJobs,
+  getGenomeDownloadUrl,
+  getFullGenomeDownloadUrl,
+  getWgsFastqDownloadUrls,
+  type GenomeFileJob,
+} from "@/actions/genome"
 
 interface GenomeJobsListProps {
   profileId: string
@@ -33,6 +39,16 @@ const STATUS_CONFIG = {
     dot: "bg-red-500",
   },
 } as const
+
+function triggerDownload(url: string) {
+  const link = document.createElement("a")
+  link.href = url
+  link.download = ""
+  link.rel = "noopener noreferrer"
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString("en-US", {
@@ -126,6 +142,7 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
   const [lastRefresh, setLastRefresh] = useState(new Date())
   const [downloading, setDownloading] = useState(false)
   const [downloadingFull, setDownloadingFull] = useState(false)
+  const [downloadingWgs, setDownloadingWgs] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
   async function handleDownload() {
@@ -137,7 +154,7 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
         setDownloadError("No genome file available for download.")
         return
       }
-      window.open(url, "_blank", "noopener,noreferrer")
+      triggerDownload(url)
     } catch {
       setDownloadError("Failed to get download link. Please try again.")
     } finally {
@@ -154,11 +171,28 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
         setDownloadError("Full genome file not available. It may have been archived after 14 days.")
         return
       }
-      window.open(url, "_blank", "noopener,noreferrer")
+      triggerDownload(url)
     } catch {
       setDownloadError("Failed to get full genome download link. Please try again.")
     } finally {
       setDownloadingFull(false)
+    }
+  }
+
+  async function handleWgsDownload() {
+    setDownloadingWgs(true)
+    setDownloadError(null)
+    try {
+      const urls = await getWgsFastqDownloadUrls(profileId)
+      if (!urls || urls.length === 0) {
+        setDownloadError("WGS FASTQ files not available for this profile.")
+        return
+      }
+      urls.forEach((url) => triggerDownload(url))
+    } catch {
+      setDownloadError("Failed to get WGS FASTQ download link. Please try again.")
+    } finally {
+      setDownloadingWgs(false)
     }
   }
 
@@ -249,6 +283,16 @@ export function GenomeJobsList({ profileId, initialJobs }: GenomeJobsListProps) 
               >
                 <Download className={`w-3 h-3 ${downloadingFull ? "animate-pulse" : ""}`} />
                 {downloadingFull ? "Getting link…" : "Download Full Genome"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleWgsDownload}
+                disabled={downloadingWgs}
+                className="h-7 px-2 text-xs gap-1.5"
+              >
+                <Download className={`w-3 h-3 ${downloadingWgs ? "animate-pulse" : ""}`} />
+                {downloadingWgs ? "Getting link…" : "Download WGS FASTQ"}
               </Button>
             </>
           )}

@@ -9,6 +9,7 @@ import { getDnaKitJobs } from "@/actions/dna-kit"
 import { getOrderRows, getOrders } from "@/actions/orders"
 import { GenomeUpload } from "@/components/genome-upload"
 import { GenomeJobsList } from "@/components/genome-jobs-list"
+import { GenomeDownloadButtons } from "@/components/genome-download-buttons"
 import { EditProfileDialog } from "@/components/edit-profile-dialog"
 import { ReportJobsPanel } from "@/components/report-jobs-panel"
 import { DnaKitPanel } from "@/components/dna-kit-panel"
@@ -157,6 +158,9 @@ export default async function ProfileDetailPage({
             <InfoRow icon={Mail}     label="Email"               value={profile.email} />
             <InfoRow icon={Globe}    label="Primary Ethnicity"   value={profile.ethnicity} />
             <InfoRow icon={Globe}    label="Secondary Ethnicity" value={profile.secondary_ethnicity} />
+            <div className="pt-3 mt-1 border-t border-border">
+              <GenomeDownloadButtons profileId={profile.id} />
+            </div>
           </SectionCard>
         </div>
 
