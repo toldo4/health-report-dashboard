@@ -181,7 +181,7 @@ export function PersonalizedSNPSection({ rsids }: PersonalizedSNPSectionProps) {
   // Load profiles on mount
   useEffect(() => {
     getProfiles()
-      .then((data) => setProfiles(Array.isArray(data) ? data : (data.results ?? [])))
+      .then(setProfiles)
       .catch(() => setError("Failed to load profiles"))
       .finally(() => setProfilesLoading(false))
   }, [])

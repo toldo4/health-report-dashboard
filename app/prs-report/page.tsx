@@ -4,8 +4,7 @@ import { getProfiles } from "@/actions/profile"
 import { PrsReportBuilder } from "@/components/prs-report-builder"
 
 export default async function PrsReportPage() {
-  const raw = await getProfiles()
-  const profiles = Array.isArray(raw) ? raw : (raw.results ?? [])
+  const profiles = await getProfiles()
 
   return (
     <main className="p-8 max-w-7xl mx-auto">

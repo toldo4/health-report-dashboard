@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache";
+import { fetchAllPages } from "@/lib/b2b-pagination";
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || "";
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`;
@@ -27,15 +28,17 @@ async function getAccessToken() {
 // Fetch all profiles
 export async function getProfiles() {
   const token = await getAccessToken();
-  const response = await fetch(`${BASE_URL}/service/b2b-integrations/profile/`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error("Failed to fetch profiles");
-  return response.json();
+  try {
+    return await fetchAllPages<any>(`${BASE_URL}/service/b2b-integrations/profile/`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+  } catch {
+    throw new Error("Failed to fetch profiles");
+  }
 }
 
 // Fetch a single profile by ID

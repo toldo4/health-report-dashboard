@@ -14,6 +14,7 @@ import {
   type ReportSummary,
   type ReportType,
 } from "@/lib/reports-catalogue"
+import { fetchAllPages } from "@/lib/b2b-pagination"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`
@@ -108,12 +109,14 @@ async function apiPost(url: string, token: string, body: object): Promise<any> {
  * All filtering happens in-memory from this single list.
  */
 async function fetchAllReportSummaries(token: string): Promise<ReportSummary[]> {
-  const res = await fetch(`${B2B}/report-summary/`, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    next: { revalidate: 300 },
-  })
-  if (!res.ok) return []
-  return res.json()
+  try {
+    return await fetchAllPages<ReportSummary>(`${B2B}/report-summary/`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      next: { revalidate: 300 },
+    })
+  } catch {
+    return []
+  }
 }
 
 async function buildSummaryMap(token: string): Promise<Map<string, ReportSummary>> {
@@ -189,13 +192,10 @@ async function listJobs(
   summaryMap?: Map<string, ReportSummary>,
 ): Promise<AnyJob[]> {
   try {
-    const res = await fetch(`${endpoint}?profile_id=${profileId}`, {
+    const arr = await fetchAllPages<any>(`${endpoint}?profile_id=${profileId}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       cache: "no-store",
     })
-    if (!res.ok) return []
-    const data = await res.json()
-    const arr = Array.isArray(data) ? data : (data.results ?? [])
     return arr.map((j: any) => normalize(j, jobType, label, summaryMap))
   } catch {
     return []

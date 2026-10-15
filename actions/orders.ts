@@ -1,6 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { fetchAllPages } from "@/lib/b2b-pagination"
 
 const ENV_DOMAIN = process.env.SELFDECODE_ENV_DOMAIN || ""
 const BASE_URL = `https://${ENV_DOMAIN}selfdecode.com`
@@ -123,13 +124,10 @@ export interface CreateOrderPayload {
 
 export async function getOrders(): Promise<Order[]> {
   const token = await getAccessToken()
-  const res = await fetch(`${B2B}/order/`, {
+  const arr = await fetchAllPages<Order>(`${B2B}/order/`, {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     cache: "no-store",
   })
-  if (!res.ok) throw new Error(`Failed to fetch orders: ${res.status}`)
-  const data = await res.json()
-  const arr: Order[] = Array.isArray(data) ? data : (data.results ?? [])
   return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 }
 
